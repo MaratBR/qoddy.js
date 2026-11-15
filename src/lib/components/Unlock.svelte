@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { library, LibraryError } from '#lib/client/library.svelte.ts';
+	import { t } from '#lib/client/i18n.svelte.ts';
 
 	let password = $state('');
 	let error = $state<string | null>(null);
@@ -13,7 +14,7 @@
 			await library.unlock(password);
 			password = '';
 		} catch (failure) {
-			error = failure instanceof LibraryError ? failure.message : 'Could not unlock.';
+			error = failure instanceof LibraryError ? failure.message : t.unlock.failed;
 		} finally {
 			busy = false;
 		}
@@ -31,13 +32,13 @@
 			aria-hidden="true"
 		/>
 	{/if}
-	<p>Your thoughts are locked with a password. Enter it to read them on this device.</p>
+	<p>{t.unlock.prompt}</p>
 	<label class="field">
-		<span>Password</span>
+		<span>{t.common.password}</span>
 		<input type="password" autocomplete="current-password" required bind:value={password} />
 		{#if error}<span class="error" role="alert">{error}</span>{/if}
 	</label>
-	<button class="button" disabled={busy}>{busy ? 'Unlocking…' : 'Unlock'}</button>
+	<button class="button" disabled={busy}>{busy ? t.unlock.unlocking : t.unlock.unlock}</button>
 </form>
 
 <style>

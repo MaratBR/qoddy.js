@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { library } from '#lib/client/library.svelte.ts';
+	import { t } from '#lib/client/i18n.svelte.ts';
 	import DayView from '#lib/components/DayView.svelte';
 
 	const slug = $derived(page.params.slug ?? '');
-	const name = $derived(slug === 'mine' ? 'Your thoughts' : library.collection(slug)?.name);
+	const name = $derived(slug === 'mine' ? t.common.yourThoughts : library.collection(slug)?.name);
 	const count = $derived.by(() => {
 		if (slug === 'mine') return library.mine.length;
 		const collection = library.collection(slug);
@@ -21,10 +22,8 @@
 		{name}
 		<a href="/c/{slug}/all"
 			>{slug === 'mine' && library.locked && library.sealed > 0
-				? 'locked'
-				: count === 1
-					? 'one thought'
-					: `all ${count} thoughts`}</a
+				? t.collection.locked
+				: t.collection.count(count)}</a
 		>
 	</p>
 {/if}

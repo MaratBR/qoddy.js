@@ -2,12 +2,13 @@
 	// Every thought in a collection, newest first, searchable.
 	import { page } from '$app/state';
 	import { library } from '#lib/client/library.svelte.ts';
+	import { t } from '#lib/client/i18n.svelte.ts';
 	import Unlock from '#lib/components/Unlock.svelte';
 
 	const slug = $derived(page.params.slug ?? '');
 	const mine = $derived(slug === 'mine');
 	const collection = $derived(mine ? undefined : library.collection(slug));
-	const name = $derived(mine ? 'Your thoughts' : collection?.name);
+	const name = $derived(mine ? t.common.yourThoughts : collection?.name);
 	const all = $derived(
 		mine
 			? [...library.mine].reverse()
@@ -34,15 +35,15 @@
 
 <main>
 	{#if !name}
-		<h1>Nothing here</h1>
-		<p>There is no collection at this address.</p>
+		<h1>{t.common.nothingHere}</h1>
+		<p>{t.common.noCollection}</p>
 	{:else}
 		<header>
 			<h1>{name}</h1>
 			{#if collection?.description}<p class="muted">{collection.description}</p>{/if}
 			<p>
-				<a href="/c/{slug}">Today’s thought</a>
-				{#if mine}<a class="button" href="/write">Write a thought</a>{/if}
+				<a href="/c/{slug}">{t.collection.todays}</a>
+				{#if mine}<a class="button" href="/write">{t.common.writeAThought}</a>{/if}
 			</p>
 		</header>
 
@@ -52,17 +53,17 @@
 
 		{#if all.length > 6}
 			<label class="field search">
-				<span>Search</span>
-				<input type="search" bind:value={search} placeholder="Words, an author, a source" />
+				<span>{t.collection.search}</span>
+				<input type="search" bind:value={search} placeholder={t.collection.searchHint} />
 			</label>
 		{/if}
 
 		{#if all.length === 0}
 			<p class="muted">
-				{mine ? 'You have not written or kept any thoughts yet.' : 'No thoughts here yet.'}
+				{mine ? t.collection.noneMine : t.common.noThoughtsYet}
 			</p>
 		{:else if shown.length === 0}
-			<p class="muted">Nothing matches “{search.trim()}”.</p>
+			<p class="muted">{t.collection.noMatch(search.trim())}</p>
 		{/if}
 
 		<ol class="list">

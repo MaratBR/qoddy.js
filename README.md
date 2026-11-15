@@ -96,6 +96,19 @@ pnpm qoddy settings set <key> <value>                # site_name, allow_sign_up,
 
 The CLI uses the same `DATABASE_PATH` as the server.
 
+## Languages
+
+The reading app speaks English and Russian. Readers pick a language in **Menu** or on **Account**.
+
+- **Signed in:** the choice is saved to the account and follows the reader to every device. A new account starts in the language the app is showing, which is the browser's language unless the reader picked one.
+- **Signed out:** the choice stays on the device. Without one, the app uses the first of the browser's languages it speaks, else English.
+- **Server messages:** the server answers in English. Failures a reader can act on, such as a wrong password, also carry a `code`, and the app shows them in the reader's language. The admin dashboard and the CLI are English only.
+
+To add a language:
+
+1. List it in `LOCALES` in `src/lib/locales.ts`.
+2. Add its catalog under `src/lib/client/locales/`, typed `Messages`, and register it in `CATALOGS` in `src/lib/client/i18n.svelte.ts`. `pnpm check` fails while a key is missing.
+
 ## Themes
 
 Readers pick a theme in **Menu**. A signed-in reader's choice syncs to their account. Otherwise it stays on the device, and it falls back to the site's `default_theme`. Themes with light and dark variants also offer System, Light and Dark.

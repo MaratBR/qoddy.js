@@ -3,6 +3,34 @@ import { renderMarkdown } from './markdown.ts';
 import { parseCsv, parseCsvRecords, CsvError } from './csv.ts';
 import { addDays, dayNumber, dayOfYear, isDate, ofTheDay } from './days.ts';
 import { checkThought, sizeClass } from './thought.ts';
+import { findLocale, matchLocale } from './locales.ts';
+import { ru } from './client/locales/ru.ts';
+import { en } from './client/locales/en.ts';
+
+describe('locales', () => {
+	it('picks the first browser language the app speaks', () => {
+		expect(matchLocale(['ru-RU', 'en-US'])).toBe('ru');
+		expect(matchLocale(['de-DE', 'EN'])).toBe('en');
+		expect(matchLocale(['de', 'fr'])).toBeUndefined();
+		expect(findLocale('ru')).toBe('ru');
+		expect(findLocale('ru-RU')).toBeUndefined();
+	});
+
+	it('words counts by each language’s plural rules', () => {
+		expect([1, 2, 5, 11, 21, 22, 25].map(ru.collection.count)).toEqual([
+			'одна мысль',
+			'2 мысли',
+			'5 мыслей',
+			'11 мыслей',
+			'21 мысль',
+			'22 мысли',
+			'25 мыслей'
+		]);
+		expect(ru.status.pending(1)).toBe('1 изменение ждёт синхронизации.');
+		expect(en.status.pending(1)).toBe('1 change waiting to sync.');
+		expect(en.collection.count(3)).toBe('all 3 thoughts');
+	});
+});
 
 describe('markdown', () => {
 	it('renders simple markup', () => {
@@ -92,7 +120,16 @@ describe('thought', () => {
 				font: null
 			}
 		});
-		expect(checkThought({ text: '' })).toMatchObject({ ok: false, field: 'text' });
+		expect(checkThought({ text: '' })).toMatchObject({
+			ok: false,
+			field: 'text',
+			code: 'required'
+		});
+		expect(checkThought({ text: 'x', author: 'a'.repeat(201) })).toMatchObject({
+			ok: false,
+			field: 'author',
+			code: 'too_long'
+		});
 		expect(checkThought({ text: 'x', theme: 'nope' })).toMatchObject({ ok: false, field: 'theme' });
 		expect(checkThought({ text: 'x', font: 'A");}' })).toMatchObject({ ok: false, field: 'font' });
 		expect(checkThought({ text: 'x', lang: 'zh-Hans' })).toMatchObject({ ok: true });

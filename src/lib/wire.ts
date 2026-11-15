@@ -2,6 +2,26 @@
 
 import type { ThoughtFields } from './thought.ts';
 
+/** Shortest account password, in characters. */
+export const MIN_PASSWORD = 8;
+
+/** Failures the reader can act on; the client shows them in the reader's language. */
+export type ErrorCode =
+	| 'wrong_password'
+	| 'email_invalid'
+	| 'email_taken'
+	| 'name_invalid'
+	| 'password_short'
+	| 'password_long'
+	| 'sign_up_closed';
+
+/** The body of a failed `/api` request. `error` is English, for anything without a `code`. */
+export interface ApiError {
+	error: string;
+	field?: string;
+	code?: ErrorCode;
+}
+
 /** Encryption parameters for a locked personal collection. */
 export interface Lock {
 	/** Id of the key every item is encrypted with. */
@@ -52,6 +72,8 @@ export interface Me {
 	name: string;
 	role: 'admin' | 'user';
 	theme: string | null;
+	/** The reader's language (`#lib/locales.ts`); null until they have one. */
+	locale: string | null;
 }
 
 export interface SyncRequest {
@@ -61,6 +83,8 @@ export interface SyncRequest {
 	mineSince: number;
 	/** The reader's theme choice, when it changed on this device. */
 	theme?: string | null;
+	/** The reader's language choice, when it changed on this device. */
+	locale?: string | null;
 	mine?: {
 		/** A new lock (or null to remove it), based on the lock at revision `base`. */
 		lock?: { base: number; value: Lock | null };

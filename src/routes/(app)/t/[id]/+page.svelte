@@ -2,6 +2,7 @@
 	// One thought by its id: a public one, or one of yours (found on this device only).
 	import { page } from '$app/state';
 	import { library } from '#lib/client/library.svelte.ts';
+	import { t } from '#lib/client/i18n.svelte.ts';
 	import Thought from '#lib/components/Thought.svelte';
 	import KeepButton from '#lib/components/KeepButton.svelte';
 	import Unlock from '#lib/components/Unlock.svelte';
@@ -22,7 +23,8 @@
 </script>
 
 <svelte:head>
-	{#if thought}<title>{thought.author ?? 'A thought'} · {library.settings.site_name}</title>{/if}
+	{#if thought}<title>{thought.author ?? t.thought.untitled} · {library.settings.site_name}</title
+		>{/if}
 </svelte:head>
 
 <main>
@@ -31,31 +33,27 @@
 			{#snippet actions()}
 				{#if shared}
 					<KeepButton thought={shared} />
-					{#if canShare}<button class="link" onclick={share}>Share</button>{/if}
+					{#if canShare}<button class="link" onclick={share}>{t.thought.share}</button>{/if}
 				{:else}
-					<a class="link" href="/write?id={id}">Edit</a>
+					<a class="link" href="/write?id={id}">{t.common.edit}</a>
 				{/if}
 			{/snippet}
 		</Thought>
 		<p class="from">
 			{#if collection}
-				From <a href={collection.slug === 'default' ? '/' : `/c/${collection.slug}`}
-					>{collection.name}</a
+				{t.thought.fromCollection}
+				<a href={collection.slug === 'default' ? '/' : `/c/${collection.slug}`}>{collection.name}</a
 				>
 			{:else}
-				From <a href="/c/mine/all">your thoughts</a>
+				{t.thought.fromMine} <a href="/c/mine/all">{t.thought.yourThoughtsLink}</a>
 			{/if}
 		</p>
 	{:else if library.locked && library.sealed > 0}
 		<Unlock />
 	{:else}
-		<h1>Not on this device</h1>
-		<p>
-			{library.online
-				? 'This thought does not exist, or it was deleted.'
-				: 'This thought is not on this device. Connect once to fetch it.'}
-		</p>
-		<p><a href="/">Back to today</a></p>
+		<h1>{t.common.notOnDevice}</h1>
+		<p>{library.online ? t.thought.gone : t.thought.goneOffline}</p>
+		<p><a href="/">{t.common.backToToday}</a></p>
 	{/if}
 </main>
 

@@ -9,6 +9,8 @@ import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { Invalid, type Db } from './db.ts';
 import { getSettings } from './settings.ts';
 import { themeExists } from '../themes.ts';
+import { findLocale } from '../locales.ts';
+import { MIN_PASSWORD } from '../wire.ts';
 
 export type Role = 'admin' | 'user';
 
@@ -19,9 +21,10 @@ export interface User {
 	role: Role;
 	/** Preferred theme id; null follows the site default. */
 	theme: string | null;
+	/** Preferred language (`#lib/locales.ts`); null keeps the device's. */
+	locale: string | null;
 }
 
-export const MIN_PASSWORD = 8;
 const SESSION_MS = 30 * 86_400_000;
 
 const N = 2 ** 15;
@@ -57,7 +60,7 @@ async function verifyPassword(password: string, stored: string): Promise<boolean
 /** Checked when the email is unknown, so both failures take about as long. */
 let dummyHash: Promise<string> | undefined;
 
-const USER_COLUMNS = 'id, email, name, role, theme';
+const USER_COLUMNS = 'id, email, name, role, theme, locale';
 
 export function findUser(db: Db, id: number): User | undefined {
 	return db.prepare(`SELECT ${USER_COLUMNS} FROM user WHERE id = ?`).get(id) as User | undefined;
@@ -87,34 +90,40 @@ export async function authenticate(db: Db, email: string, password: string): Pro
 /** Creates an account regardless of the sign-up setting (CLI). */
 export async function createUser(
 	db: Db,
-	input: { email: string; name: string; password: string; role?: Role }
+	input: { email: string; name: string; password: string; role?: Role; locale?: string }
 ): Promise<User> {
 	const email = normalizeEmail(input.email);
 	const name = input.name.trim();
 	if (!/^[^\s@]+@[^\s@]+$/.test(email) || email.length > 254) {
-		throw new Invalid('Enter a valid email address.', 'email');
+		throw new Invalid('Enter a valid email address.', 'email', 'email_invalid');
 	}
-	if (!name || name.length > 100) throw new Invalid('Enter a name (up to 100 characters).', 'name');
+	if (!name || name.length > 100) {
+		throw new Invalid('Enter a name (up to 100 characters).', 'name', 'name_invalid');
+	}
 	if ([...input.password].length < MIN_PASSWORD) {
-		throw new Invalid(`Use at least ${MIN_PASSWORD} characters.`, 'password');
+		throw new Invalid(`Use at least ${MIN_PASSWORD} characters.`, 'password', 'password_short');
 	}
-	if (input.password.length > 1024) throw new Invalid('That password is too long.', 'password');
+	if (input.password.length > 1024) {
+		throw new Invalid('That password is too long.', 'password', 'password_long');
+	}
 	if (findUserByEmail(db, email)) {
-		throw new Invalid('An account with this email already exists.', 'email');
+		throw new Invalid('An account with this email already exists.', 'email', 'email_taken');
 	}
 	const hash = await hashPassword(input.password);
 	const { lastInsertRowid } = db
-		.prepare('INSERT INTO user (email, name, password_hash, role) VALUES (?, ?, ?, ?)')
-		.run(email, name, hash, input.role ?? 'user');
+		.prepare('INSERT INTO user (email, name, password_hash, role, locale) VALUES (?, ?, ?, ?, ?)')
+		.run(email, name, hash, input.role ?? 'user', findLocale(input.locale) ?? null);
 	return findUser(db, Number(lastInsertRowid))!;
 }
 
-/** Self-service sign-up, only while the site allows it. */
+/** Self-service sign-up, only while the site allows it. `locale` is the browser's language. */
 export async function signUp(
 	db: Db,
-	input: { email: string; name: string; password: string }
+	input: { email: string; name: string; password: string; locale?: string }
 ): Promise<User> {
-	if (!getSettings(db).allow_sign_up) throw new Invalid('Sign-up is closed on this site.');
+	if (!getSettings(db).allow_sign_up) {
+		throw new Invalid('Sign-up is closed on this site.', undefined, 'sign_up_closed');
+	}
 	return createUser(db, { ...input, role: 'user' });
 }
 
@@ -136,6 +145,11 @@ export async function setPassword(db: Db, email: string, password: string): Prom
 	);
 	// A new password signs every device out.
 	db.prepare('DELETE FROM session WHERE user_id = ?').run(user.id);
+}
+
+/** Saves the reader's language; unknown ids clear it. */
+export function setLocale(db: Db, user: User, locale: string | null): void {
+	db.prepare('UPDATE user SET locale = ? WHERE id = ?').run(findLocale(locale) ?? null, user.id);
 }
 
 /** Saves the reader's theme; unknown ids clear it. */

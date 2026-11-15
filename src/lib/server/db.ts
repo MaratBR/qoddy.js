@@ -9,6 +9,7 @@
 // stay as tombstones so the deletion syncs too.
 
 import { DatabaseSync } from 'node:sqlite';
+import type { ErrorCode } from '../wire.ts';
 
 export type Db = DatabaseSync;
 
@@ -88,7 +89,9 @@ const MIGRATIONS: string[] = [
 		PRIMARY KEY (user_id, id)
 	);
 	CREATE INDEX personal_item_rev ON personal_item (user_id, rev);
-	`
+	`,
+	// The reader's language; null keeps whatever the device shows.
+	`ALTER TABLE user ADD COLUMN locale TEXT;`
 ];
 
 function migrate(db: Db): void {
@@ -150,8 +153,11 @@ export function currentRev(db: Db): number {
 /** A user-facing failure: bad input or a rule the action breaks. */
 export class Invalid extends Error {
 	field?: string;
-	constructor(message: string, field?: string) {
+	/** Set on failures readers meet, so the app can say them in the reader's language. */
+	code?: ErrorCode;
+	constructor(message: string, field?: string, code?: ErrorCode) {
 		super(message);
 		this.field = field;
+		this.code = code;
 	}
 }

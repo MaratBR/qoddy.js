@@ -5,6 +5,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { library } from '#lib/client/library.svelte.ts';
+	import { i18n, t } from '#lib/client/i18n.svelte.ts';
 	import { addDays, formatDate, isDate, ofTheDay, today } from '#lib/days.ts';
 	import Thought from './Thought.svelte';
 	import Unlock from './Unlock.svelte';
@@ -31,13 +32,19 @@
 	const base = $derived(page.url.pathname);
 
 	const href = (day: string) => (day === now ? base : `${base}?d=${day}`);
+	/** The date as the reader's language writes it, with the year only outside this one. */
 	const label = (day: string) =>
-		formatDate(day, { weekday: 'long', day: 'numeric', month: 'long' });
-	const dateline = $derived(
-		date === now
-			? label(date)
-			: label(date) + (date.slice(0, 4) === now.slice(0, 4) ? '' : `, ${date.slice(0, 4)}`)
-	);
+		formatDate(
+			day,
+			{
+				weekday: 'long',
+				day: 'numeric',
+				month: 'long',
+				year: day.slice(0, 4) === now.slice(0, 4) ? undefined : 'numeric'
+			},
+			i18n.locale
+		);
+	const dateline = $derived(label(date));
 	function go(days: number) {
 		const day = addDays(date, days);
 		if (day >= earliest && day <= now) void goto(href(day), { reset: false });
@@ -77,49 +84,44 @@
 		</div>
 	{:else if !mine && !collection}
 		<div class="empty">
-			<h1>Nothing here</h1>
-			<p>
-				There is no collection at this address{library.online
-					? '.'
-					: ' on this device yet. Connect once to fetch it.'}
-			</p>
-			<p><a href="/">Back to today</a></p>
+			<h1>{t.common.nothingHere}</h1>
+			<p>{library.online ? t.common.noCollection : t.common.noCollectionOffline}</p>
+			<p><a href="/">{t.common.backToToday}</a></p>
 		</div>
 	{:else if !thought}
 		<div class="empty">
 			{#if mine}
-				<h1>Your thoughts</h1>
-				<p>
-					Write down a thought you want to come back to. Each day brings one of yours back, the way
-					this page shows one from the collection.
-				</p>
-				<p><a class="button" href="/write">Write a thought</a></p>
-				<p class="muted">Or keep thoughts you meet: “Keep” under any of them adds it here.</p>
+				<h1>{t.common.yourThoughts}</h1>
+				<p>{t.day.mineIntro}</p>
+				<p><a class="button" href="/write">{t.common.writeAThought}</a></p>
+				<p class="muted">{t.day.keepHint}</p>
 			{:else}
 				<h1>{collection?.name}</h1>
-				<p>No thoughts here yet.</p>
+				<p>{t.common.noThoughtsYet}</p>
 			{/if}
 		</div>
 	{:else}
 		<Thought {thought} {dateline}>
 			{#snippet actions()}
 				{#if mine}
-					<a class="link" href="/write?id={thought.id}">Edit</a>
+					<a class="link" href="/write?id={thought.id}">{t.common.edit}</a>
 				{:else if shared}
 					<KeepButton thought={shared} />
 				{/if}
-				<a class="link" href="/t/{thought.id}">Permalink</a>
+				<a class="link" href="/t/{thought.id}">{t.day.permalink}</a>
 			{/snippet}
 		</Thought>
 	{/if}
 
 	<footer>
 		{#if date > earliest}
-			<a class="link" href={href(addDays(date, -1))} data-sveltekit-reset="false">Previous day</a>
+			<a class="link" href={href(addDays(date, -1))} data-sveltekit-reset="false"
+				>{t.day.previous}</a
+			>
 		{:else}
 			<span class="link" aria-hidden="true"></span>
 		{/if}
-		<ol class="ticks" aria-label="Days">
+		<ol class="ticks" aria-label={t.day.days}>
 			{#each ticks as day (day)}
 				<li>
 					{#if day <= now}
@@ -138,7 +140,7 @@
 		</ol>
 		{#if date < now}
 			<a class="link" href={href(addDays(date, 1))} data-sveltekit-reset="false"
-				>{addDays(date, 1) === now ? 'Today' : 'Next day'}</a
+				>{addDays(date, 1) === now ? t.menu.today : t.day.next}</a
 			>
 		{:else}
 			<span class="link" aria-hidden="true"></span>

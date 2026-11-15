@@ -5,6 +5,7 @@
 	import { renderMarkdown } from '#lib/markdown.ts';
 	import { sizeClass, type ThoughtFields } from '#lib/thought.ts';
 	import { useLook } from '#lib/client/look.svelte.ts';
+	import { t } from '#lib/client/i18n.svelte.ts';
 
 	let {
 		thought,
@@ -38,7 +39,7 @@
 	<div class="actions">
 		{#if notes}
 			<button class="link" aria-expanded={open} onclick={() => (open = !open)}>
-				{open ? 'Hide the notes' : 'About this thought'}
+				{open ? t.thought.hideNotes : t.thought.about}
 			</button>
 		{/if}
 		{@render actions?.()}

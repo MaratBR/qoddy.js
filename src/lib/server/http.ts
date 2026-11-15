@@ -2,6 +2,7 @@
 
 import type { Cookies } from '@sveltejs/kit';
 import { Invalid } from './db.ts';
+import type { ApiError } from '../wire.ts';
 
 export const SESSION_COOKIE = 'session';
 
@@ -16,7 +17,8 @@ export function clearSessionCookie(cookies: Cookies): void {
 
 /** A JSON error the client shows next to `field`. */
 export function invalid(error: Invalid, status = 400): Response {
-	return Response.json({ error: error.message, field: error.field }, { status });
+	const body: ApiError = { error: error.message, field: error.field, code: error.code };
+	return Response.json(body, { status });
 }
 
 export async function readJson(request: Request): Promise<unknown> {

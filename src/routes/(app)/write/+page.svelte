@@ -9,6 +9,7 @@
 	import { LIMITS, normalizeColor, sizeClass, validFont } from '#lib/thought.ts';
 	import { THEMES } from '#lib/themes.ts';
 	import Unlock from '#lib/components/Unlock.svelte';
+	import { t } from '#lib/client/i18n.svelte.ts';
 
 	const id = page.url.searchParams.get('id');
 	const existing = id ? library.mineById(id) : undefined;
@@ -49,14 +50,14 @@
 			error =
 				failure instanceof LibraryError
 					? { message: failure.message, field: failure.field }
-					: { message: 'Could not save it.' };
+					: { message: t.write.couldNotSave };
 		} finally {
 			saving = false;
 		}
 	}
 
 	async function remove() {
-		if (!existing || !confirm('Delete this thought? This cannot be undone.')) return;
+		if (!existing || !confirm(t.write.deleteConfirm)) return;
 		await library.deleteMine(existing.id);
 		await goto('/c/mine/all');
 	}
@@ -65,7 +66,9 @@
 </script>
 
 <svelte:head>
-	<title>{existing ? 'Edit thought' : 'Write a thought'} · {library.settings.site_name}</title>
+	<title
+		>{existing ? t.write.editTitle : t.common.writeAThought} · {library.settings.site_name}</title
+	>
 </svelte:head>
 
 <main>
@@ -73,15 +76,15 @@
 		{#if library.locked && library.sealed > 0}
 			<Unlock />
 		{:else}
-			<h1>Not on this device</h1>
-			<p>This thought is not among yours here. <a href="/c/mine/all">See your thoughts</a></p>
+			<h1>{t.common.notOnDevice}</h1>
+			<p>{t.write.notAmongYours} <a href="/c/mine/all">{t.write.seeYours}</a></p>
 		{/if}
 	{:else if library.signedIn && library.locked}
 		<Unlock />
 	{:else}
 		<form onsubmit={save} novalidate>
 			<label class="thought">
-				<span class="visually-hidden">The thought</span>
+				<span class="visually-hidden">{t.write.label}</span>
 				<textarea
 					class={sizeClass(text || 'x')}
 					bind:value={text}
@@ -89,36 +92,28 @@
 					dir="auto"
 					rows="3"
 					maxlength={LIMITS.text}
-					placeholder="A thought worth keeping"
+					placeholder={t.write.placeholder}
 					aria-invalid={fieldError('text') ? true : undefined}></textarea>
 			</label>
 			{#if fieldError('text')}<p class="error" role="alert">{fieldError('text')}</p>{/if}
 
 			<div class="attribution">
 				<label class="field">
-					<span>Who said or wrote it</span>
-					<input
-						bind:value={author}
-						maxlength={LIMITS.author}
-						placeholder="Leave empty if it is yours"
-					/>
+					<span>{t.write.author}</span>
+					<input bind:value={author} maxlength={LIMITS.author} placeholder={t.write.authorHint} />
 				</label>
 				<label class="field">
-					<span>Where it comes from</span>
-					<input
-						bind:value={source}
-						maxlength={LIMITS.source}
-						placeholder="A book, a talk, a walk"
-					/>
+					<span>{t.write.source}</span>
+					<input bind:value={source} maxlength={LIMITS.source} placeholder={t.write.sourceHint} />
 				</label>
 			</div>
 
 			<div class="field">
 				<div class="notes-head">
-					<label for="notes">Notes</label>
+					<label for="notes">{t.write.notes}</label>
 					{#if notes.trim()}
 						<button type="button" class="link" onclick={() => (preview = !preview)}>
-							{preview ? 'Edit notes' : 'Preview notes'}
+							{preview ? t.write.editNotes : t.write.previewNotes}
 						</button>
 					{/if}
 				</div>
@@ -128,38 +123,35 @@
 				{:else}
 					<textarea id="notes" bind:value={notes} rows="5" maxlength={LIMITS.notes}></textarea>
 				{/if}
-				<p class="hint">
-					What it means to you, or where it came from. **Bold**, *italic*, lists, &gt; quotes and
-					[links](https://…) work.
-				</p>
+				<p class="hint">{t.write.notesHint}</p>
 			</div>
 
 			<details open={styled}>
-				<summary>Style and language</summary>
+				<summary>{t.write.style}</summary>
 				<div class="style">
 					<label class="field">
-						<span>Theme</span>
+						<span>{t.write.theme}</span>
 						<select bind:value={theme}>
-							<option value="">The reader’s own</option>
+							<option value="">{t.write.readersTheme}</option>
 							{#each THEMES as option (option.id)}
-								<option value={option.id}>{option.name}</option>
+								<option value={option.id}>{t.themes[option.id] ?? option.name}</option>
 							{/each}
 						</select>
 					</label>
 					<div class="field">
 						<label class="check"
-							><input type="checkbox" bind:checked={colored} /> A color of its own</label
+							><input type="checkbox" bind:checked={colored} /> {t.write.ownColor}</label
 						>
-						{#if colored}<input type="color" bind:value={color} aria-label="Color" />{/if}
+						{#if colored}<input type="color" bind:value={color} aria-label={t.write.color} />{/if}
 					</div>
 					<label class="field">
-						<span>Font</span>
-						<input bind:value={font} placeholder="Any Google Fonts family, e.g. Lora" />
+						<span>{t.write.font}</span>
+						<input bind:value={font} placeholder={t.write.fontHint} />
 						{#if fieldError('font')}<span class="error">{fieldError('font')}</span>{/if}
 					</label>
 					<label class="field">
-						<span>Language</span>
-						<input bind:value={lang} placeholder="A tag like en, fr or zh-Hans" />
+						<span>{t.write.language}</span>
+						<input bind:value={lang} placeholder={t.write.languageHint} />
 						{#if fieldError('lang')}<span class="error">{fieldError('lang')}</span>{/if}
 					</label>
 				</div>
@@ -170,18 +162,18 @@
 			{/if}
 
 			<div class="actions">
-				<button class="button" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
-				<a class="link" href={existing ? `/t/${existing.id}` : '/c/mine'}>Cancel</a>
+				<button class="button" disabled={saving}>{saving ? t.write.saving : t.write.save}</button>
+				<a class="link" href={existing ? `/t/${existing.id}` : '/c/mine'}>{t.write.cancel}</a>
 				{#if existing}
-					<button type="button" class="link delete" onclick={remove}>Delete</button>
+					<button type="button" class="link delete" onclick={remove}>{t.write.delete}</button>
 				{/if}
 			</div>
 			{#if !library.signedIn}
 				<p class="hint">
-					Saved on this device. <a href="/account">Sign in</a> to keep your thoughts on all your devices.
+					{t.write.savedLocal} <a href="/account">{t.write.signIn}</a>{t.write.signInTail}
 				</p>
 			{:else if library.lock}
-				<p class="hint">Encrypted on this device before it syncs.</p>
+				<p class="hint">{t.write.encrypted}</p>
 			{/if}
 		</form>
 	{/if}

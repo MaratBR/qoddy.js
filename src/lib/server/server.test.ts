@@ -51,6 +51,16 @@ describe('accounts', () => {
 		expect(sessionUser(db, token)).toBeNull();
 	});
 
+	it('starts an account in the browser’s language and codes failures for the app', async () => {
+		const ru = await signUp(db, { email: 'r@x.y', name: 'R', password: '12345678', locale: 'ru' });
+		expect(ru.locale).toBe('ru');
+		const odd = await signUp(db, { email: 'o@x.y', name: 'O', password: '12345678', locale: 'xx' });
+		expect(odd.locale).toBeNull();
+		await expect(
+			signUp(db, { email: 'a@b.c', name: 'A', password: 'short' })
+		).rejects.toMatchObject({ field: 'password', code: 'password_short' });
+	});
+
 	it('respects closed sign-up but lets the CLI create users', async () => {
 		updateSettings(db, { allow_sign_up: false });
 		await expect(signUp(db, { email: 'a@b.c', name: 'A', password: '12345678' })).rejects.toThrow(
@@ -215,6 +225,13 @@ describe('sync', () => {
 		});
 		expect(race.mine?.rejected).toEqual([{ id: 'aaaaaa1', reason: 'lock' }]);
 		expect(race.mine?.lock?.key).toBe(lock.key);
+	});
+
+	it('saves the reader’s language; unknown ones clear it', () => {
+		expect(sync(db, user, { since: 0, mineSince: 0, locale: 'ru' }).me?.locale).toBe('ru');
+		expect(sync(db, user, { since: 0, mineSince: 0 }).me?.locale).toBe('ru');
+		expect(sync(db, user, { since: 0, mineSince: 0, locale: 'xx' }).me?.locale).toBeNull();
+		expect(parseSyncRequest({ locale: 5 })).toEqual({ since: 0, mineSince: 0 });
 	});
 
 	it('rejects malformed requests', () => {

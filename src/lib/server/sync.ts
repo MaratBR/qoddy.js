@@ -13,7 +13,7 @@
 
 import { currentRev, Invalid, nextRev, transaction, type Db } from './db.ts';
 import { getSettings } from './settings.ts';
-import { findUser, setTheme, type User } from './accounts.ts';
+import { findUser, setLocale, setTheme, type User } from './accounts.ts';
 import { isId } from '../thought.ts';
 import type { Lock, MineItem, SyncRequest, SyncResponse } from '../wire.ts';
 
@@ -79,6 +79,7 @@ export function parseSyncRequest(body: unknown): SyncRequest {
 		Number.isSafeInteger(value) && (value as number) >= 0 ? (value as number) : 0;
 	const request: SyncRequest = { since: cursor(input.since), mineSince: cursor(input.mineSince) };
 	if (input.theme === null || typeof input.theme === 'string') request.theme = input.theme;
+	if (input.locale === null || typeof input.locale === 'string') request.locale = input.locale;
 	const mine = input.mine as Record<string, unknown> | undefined;
 	if (mine !== undefined) {
 		if (typeof mine !== 'object' || mine === null || !Array.isArray(mine.items)) {
@@ -199,6 +200,7 @@ export function sync(db: Db, user: User | null, request: SyncRequest): SyncRespo
 		let pushed: ReturnType<typeof push> = { rejected: [], newer: [] };
 		if (user) {
 			if (request.theme !== undefined) setTheme(db, user, request.theme);
+			if (request.locale !== undefined) setLocale(db, user, request.locale);
 			if (request.mine) {
 				// A refused lock change undoes the push but still answers with a pull.
 				db.exec('SAVEPOINT push');

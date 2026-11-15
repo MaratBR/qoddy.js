@@ -15,10 +15,14 @@
 // server has them. `mine` is the readable view, rebuilt after every change.
 
 import * as idb from './idb.ts';
+import { store, stored } from './storage.ts';
+import { i18n, t } from './i18n.svelte.ts';
+import { findLocale } from '../locales.ts';
 import { createLock, decryptItem, encryptItem, openLock } from './crypto.ts';
-import { checkThought, newId, type ThoughtFields } from '../thought.ts';
+import { checkThought, LIMITS, newId, type ThoughtFields } from '../thought.ts';
 import { findTheme, THEMES } from '../themes.ts';
 import type {
+	ApiError,
 	Lock,
 	Me,
 	MineItem,
@@ -57,6 +61,8 @@ interface State {
 	settings: PublicSettings;
 	/** The reader changed their theme while signed in and it has not synced yet. */
 	themeDirty: boolean;
+	/** Same, for the reader's language. */
+	localeDirty: boolean;
 	lastSync: number | null;
 }
 
@@ -76,6 +82,7 @@ const INITIAL: State = {
 	me: null,
 	settings: DEFAULT_SETTINGS,
 	themeDirty: false,
+	localeDirty: false,
 	lastSync: null
 };
 
@@ -94,21 +101,12 @@ export class LibraryError extends Error {
 	}
 }
 
-function stored(key: string): string | null {
-	try {
-		return localStorage.getItem(key);
-	} catch {
-		return null;
-	}
-}
-
-function store(key: string, value: string | null): void {
-	try {
-		if (value === null) localStorage.removeItem(key);
-		else localStorage.setItem(key, value);
-	} catch {
-		// Private mode: the choice lasts for this page only.
-	}
+/** A failed request's error in the reader's language, or the server's own words. */
+async function failed(response: Response): Promise<LibraryError> {
+	const json = (await response.json().catch(() => ({}))) as Partial<ApiError>;
+	const message =
+		(json.code && t.serverErrors[json.code]) || json.error || t.errors.server(response.status);
+	return new LibraryError(message, json.field);
 }
 
 function byCreated(a: MyThought, b: MyThought): number {
@@ -277,13 +275,7 @@ class Library {
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify(body)
 		});
-		if (!response.ok) {
-			const message = await response
-				.json()
-				.then((json: { error?: string }) => json.error)
-				.catch(() => undefined);
-			throw new LibraryError(message ?? `The server answered ${response.status}.`);
-		}
+		if (!response.ok) throw await failed(response);
 		return response.json();
 	}
 
@@ -295,6 +287,7 @@ class Library {
 		const state = this.#state;
 		const request: SyncRequest = { since: state.since, mineSince: state.mineSince };
 		if (state.themeDirty && state.me) request.theme = state.me.theme;
+		if (state.localeDirty && state.me) request.locale = state.me.locale;
 		// Personal changes go up only to the account they belong to.
 		const pushed = state.mineOwner !== null ? await this.#outgoing() : [];
 		if (pushed.length) request.mine = { items: pushed };
@@ -304,8 +297,7 @@ class Library {
 			this.online = true;
 			this.syncError = null;
 		} catch (error) {
-			this.syncError =
-				error instanceof LibraryError ? error.message : 'Could not reach the server.';
+			this.syncError = error instanceof LibraryError ? error.message : t.errors.unreachable;
 			return;
 		}
 		await this.#apply(response, request, pushed);
@@ -393,12 +385,16 @@ class Library {
 		}
 		if (me) {
 			if (request.theme !== undefined) state.themeDirty = false;
+			if (request.locale !== undefined) state.localeDirty = false;
 			const theme = state.themeDirty && state.me ? state.me.theme : me.theme;
-			state.me = { ...me, theme };
+			const locale = state.localeDirty && state.me ? state.me.locale : me.locale;
+			state.me = { ...me, theme, locale };
 			if (theme) {
 				this.#deviceTheme = theme;
 				store(THEME_KEY, theme);
 			}
+			// An account without a language keeps this device's.
+			if (locale) i18n.set(locale);
 		} else if (state.me) {
 			// The session ended (signed out elsewhere, or expired). The thoughts
 			// stay on this device until the reader signs in or out here.
@@ -420,7 +416,7 @@ class Library {
 			}
 			if ([...rejected.values()].includes('lock')) this.#again = true;
 			if ([...rejected.values()].includes('limit')) {
-				this.syncError = 'Your collection is full: some thoughts stay on this device only.';
+				this.syncError = t.errors.full;
 			}
 			state.lock = response.mine.lock;
 			state.lockRev = response.mine.lockRev;
@@ -511,7 +507,10 @@ class Library {
 		options: { id?: string; from?: string | null } = {}
 	): Promise<string> {
 		const checked = checkThought(input);
-		if (!checked.ok) throw new LibraryError(checked.error, checked.field);
+		if (!checked.ok) {
+			const limit = LIMITS[checked.field as keyof typeof LIMITS] ?? 0;
+			throw new LibraryError(t.thoughtErrors(checked.code, limit), checked.field);
+		}
 		const key = this.#writeKey();
 		const id = options.id ?? newId();
 		const previous = this.mine.find((thought) => thought.id === id);
@@ -554,9 +553,7 @@ class Library {
 	/** The key new writes use; refuses while the collection is locked here. */
 	#writeKey(): string {
 		const lock = this.#state.mineOwner !== null ? this.#state.lock : null;
-		if (lock && !this.#keys.has(lock.key)) {
-			throw new LibraryError('Unlock your thoughts on this device first.');
-		}
+		if (lock && !this.#keys.has(lock.key)) throw new LibraryError(t.errors.unlockFirst);
 		return lock?.key ?? '';
 	}
 
@@ -583,12 +580,9 @@ class Library {
 				body: JSON.stringify(body)
 			});
 		} catch {
-			throw new LibraryError('You are offline. Try again once you are connected.');
+			throw new LibraryError(t.errors.offline);
 		}
-		if (!response.ok) {
-			const json = (await response.json().catch(() => ({}))) as { error?: string; field?: string };
-			throw new LibraryError(json.error ?? 'Something went wrong. Try again.', json.field);
-		}
+		if (!response.ok) throw await failed(response);
 	}
 
 	async signIn(email: string, password: string): Promise<void> {
@@ -596,8 +590,9 @@ class Library {
 		await this.sync();
 	}
 
+	/** A new account starts in the language the app is showing: the browser's, unless the reader chose. */
 	async signUp(name: string, email: string, password: string): Promise<void> {
-		await this.#auth({ action: 'signup', name, email, password });
+		await this.#auth({ action: 'signup', name, email, password, locale: i18n.locale });
 		await this.sync();
 	}
 
@@ -605,7 +600,7 @@ class Library {
 	async signOut(): Promise<void> {
 		await this.sync();
 		await this.#auth({ action: 'signout' });
-		const state = { ...this.#state, me: null, themeDirty: false };
+		const state = { ...this.#state, me: null, themeDirty: false, localeDirty: false };
 		const changes: idb.Change[] = [];
 		this.#forgetMine(changes, state);
 		this.#state = state;
@@ -621,7 +616,7 @@ class Library {
 		const lock = this.#state.lock;
 		if (!lock) return;
 		const key = await openLock(lock, password);
-		if (!key) throw new LibraryError('That password does not open your thoughts.', 'password');
+		if (!key) throw new LibraryError(t.errors.wrongLockPassword, 'password');
 		this.#keys.set(lock.key, key);
 		this.#keyVersion++;
 		await idb.write([{ store: 'keys', key: lock.key, put: key }]);
@@ -643,12 +638,10 @@ class Library {
 	 * change if another device wrote meanwhile, and then this asks to retry.
 	 */
 	async setLock(password: string | null): Promise<void> {
-		if (!this.signedIn) throw new LibraryError('Sign in to lock your thoughts.');
-		if (!navigator.onLine) throw new LibraryError('Changing the lock needs a connection.');
+		if (!this.signedIn) throw new LibraryError(t.errors.signInToLock);
+		if (!navigator.onLine) throw new LibraryError(t.account.lockNeedsConnection);
 		await this.sync();
-		if (this.locked || this.sealed > 0) {
-			throw new LibraryError('Unlock your thoughts on this device first.');
-		}
+		if (this.locked || this.sealed > 0) throw new LibraryError(t.errors.unlockFirst);
 		const next = password ? await createLock(password) : null;
 		const items: MineItem[] = [];
 		for (const record of this.#records.values()) {
@@ -682,7 +675,7 @@ class Library {
 			refused ? [] : items
 		);
 		if (refused) {
-			throw new LibraryError('Your thoughts changed on another device. Try again.');
+			throw new LibraryError(t.errors.changedElsewhere);
 		}
 	}
 
@@ -702,6 +695,18 @@ class Library {
 	setMode(mode: Mode): void {
 		this.mode = mode;
 		store(MODE_KEY, mode);
+	}
+
+	/** Shows the app in another language; signed in, the account remembers it. */
+	setLocale(id: string): void {
+		const locale = findLocale(id);
+		if (!locale) return;
+		i18n.set(locale);
+		if (this.#state.me) {
+			this.#state = { ...this.#state, me: { ...this.#state.me, locale }, localeDirty: true };
+			void idb.write([{ store: 'meta', key: 'state', put: $state.snapshot(this.#state) }]);
+			this.#soon();
+		}
 	}
 }
 

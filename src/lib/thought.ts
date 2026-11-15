@@ -24,8 +24,12 @@ export const LIMITS = { text: 2000, author: 200, source: 300, notes: 20000 } as 
 
 export type FieldName = keyof ThoughtFields;
 
+/** What is wrong with a field; the reading app words it in the reader's language. */
+export type ThoughtProblem = 'required' | 'too_long' | 'lang' | 'theme' | 'color' | 'font';
+
 export type Checked =
-	{ ok: true; value: ThoughtFields } | { ok: false; field: FieldName; error: string };
+	| { ok: true; value: ThoughtFields }
+	| { ok: false; field: FieldName; code: ThoughtProblem; error: string };
 
 function clean(value: unknown): string | null {
 	if (typeof value !== 'string') return null;
@@ -52,7 +56,9 @@ export function validLang(value: string): boolean {
 export function checkThought(raw: object): Checked {
 	const input = raw as Record<string, unknown>;
 	const text = clean(input.text);
-	if (!text) return { ok: false, field: 'text', error: 'Write the thought itself.' };
+	if (!text) {
+		return { ok: false, field: 'text', code: 'required', error: 'Write the thought itself.' };
+	}
 	const value: ThoughtFields = {
 		text,
 		author: clean(input.author),
@@ -66,24 +72,42 @@ export function checkThought(raw: object): Checked {
 	for (const field of ['text', 'author', 'source', 'notes'] as const) {
 		const length = value[field]?.length ?? 0;
 		if (length > LIMITS[field]) {
-			return { ok: false, field, error: `Keep it under ${LIMITS[field]} characters.` };
+			return {
+				ok: false,
+				field,
+				code: 'too_long',
+				error: `Keep it under ${LIMITS[field]} characters.`
+			};
 		}
 	}
 	if (value.lang && !validLang(value.lang)) {
-		return { ok: false, field: 'lang', error: 'Use a language tag like en, ru or zh-Hans.' };
+		return {
+			ok: false,
+			field: 'lang',
+			code: 'lang',
+			error: 'Use a language tag like en, ru or zh-Hans.'
+		};
 	}
 	if (value.theme && !themeExists(value.theme)) {
-		return { ok: false, field: 'theme', error: `There is no theme called “${value.theme}”.` };
+		return {
+			ok: false,
+			field: 'theme',
+			code: 'theme',
+			error: `There is no theme called “${value.theme}”.`
+		};
 	}
 	if (value.color) {
 		const color = normalizeColor(value.color);
-		if (!color) return { ok: false, field: 'color', error: 'Use a color like #8a2c1d.' };
+		if (!color) {
+			return { ok: false, field: 'color', code: 'color', error: 'Use a color like #8a2c1d.' };
+		}
 		value.color = color;
 	}
 	if (value.font && !validFont(value.font)) {
 		return {
 			ok: false,
 			field: 'font',
+			code: 'font',
 			error: 'Use a Google Fonts family name (letters, digits and spaces).'
 		};
 	}

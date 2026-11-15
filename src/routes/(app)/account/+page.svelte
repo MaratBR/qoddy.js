@@ -2,6 +2,8 @@
 	// Signing in and out, and locking your thoughts with a password.
 	import { library, LibraryError } from '#lib/client/library.svelte.ts';
 	import Unlock from '#lib/components/Unlock.svelte';
+	import LanguagePicker from '#lib/components/LanguagePicker.svelte';
+	import { i18n, t } from '#lib/client/i18n.svelte.ts';
 
 	type Failure = { message: string; field?: string } | null;
 
@@ -32,7 +34,7 @@
 			else await library.signIn(email, password);
 			password = '';
 		} catch (thrown) {
-			error = failure(thrown, 'Something went wrong. Try again.');
+			error = failure(thrown, t.errors.generic);
 		} finally {
 			busy = false;
 		}
@@ -40,18 +42,13 @@
 
 	async function signOut() {
 		const waiting = library.pending;
-		if (
-			waiting > 0 &&
-			!confirm(
-				`${waiting} of your changes have not reached the server yet and will be lost. Sign out anyway?`
-			)
-		) {
+		if (waiting > 0 && !confirm(t.account.signOutConfirm(waiting))) {
 			return;
 		}
 		try {
 			await library.signOut();
 		} catch (thrown) {
-			error = failure(thrown, 'Could not sign out.');
+			error = failure(thrown, t.account.couldNotSignOut);
 		}
 	}
 
@@ -60,26 +57,22 @@
 		lockError = null;
 		lockDone = null;
 		if (!remove && newPassword.length < 8) {
-			lockError = { message: 'Use at least 8 characters.', field: 'new' };
+			lockError = { message: t.account.tooShort, field: 'new' };
 			return;
 		}
 		if (!remove && newPassword !== repeat) {
-			lockError = { message: 'The passwords do not match.', field: 'repeat' };
+			lockError = { message: t.account.mismatch, field: 'repeat' };
 			return;
 		}
-		if (remove && !confirm('Remove the lock? Your thoughts will be stored unencrypted.')) return;
+		if (remove && !confirm(t.account.removeConfirm)) return;
 		lockBusy = true;
 		try {
 			const had = Boolean(library.lock);
 			await library.setLock(remove ? null : newPassword);
 			newPassword = repeat = '';
-			lockDone = remove
-				? 'The lock is removed.'
-				: had
-					? 'Password changed.'
-					: 'Your thoughts are locked.';
+			lockDone = remove ? t.account.removed : had ? t.account.changed : t.account.locked;
 		} catch (thrown) {
-			lockError = failure(thrown, 'Could not change the lock.');
+			lockError = failure(thrown, t.account.couldNotChangeLock);
 		} finally {
 			lockBusy = false;
 		}
@@ -87,7 +80,7 @@
 
 	const synced = $derived(
 		library.lastSync
-			? new Date(library.lastSync).toLocaleString(undefined, {
+			? new Date(library.lastSync).toLocaleString(i18n.locale, {
 					dateStyle: 'medium',
 					timeStyle: 'short'
 				})
@@ -96,7 +89,7 @@
 </script>
 
 <svelte:head>
-	<title>Account · {library.settings.site_name}</title>
+	<title>{t.account.title} · {library.settings.site_name}</title>
 </svelte:head>
 
 <main>
@@ -104,27 +97,18 @@
 		<h1>{library.me.name}</h1>
 		<p class="muted">
 			{library.me.email}
-			{#if synced}<br />Last synced {synced}.{/if}
+			{#if synced}<br />{t.account.lastSynced(synced)}{/if}
 		</p>
-		<p><button class="link" onclick={signOut}>Sign out</button></p>
-		<p class="hint">
-			Signing out removes your thoughts from this device. They stay in your account.
-		</p>
+		<p><button class="link" onclick={signOut}>{t.account.signOut}</button></p>
+		<p class="hint">{t.account.signOutHint}</p>
 
 		<section>
-			<h2>Lock</h2>
+			<h2>{t.account.lock}</h2>
 			{#if library.lock && library.locked}
 				<Unlock />
 			{:else}
 				<p>
-					{#if library.lock}
-						Your thoughts are encrypted on your devices before they are sent, with a key made from
-						your password. The server cannot read them.
-					{:else}
-						Lock your thoughts with a password: they are encrypted on your devices before they are
-						sent, and the server cannot read them. If you forget the password, nobody can recover
-						them.
-					{/if}
+					{library.lock ? t.account.lockedInfo : t.account.lockOffer}
 				</p>
 				<form onsubmit={(event) => changeLock(event)}>
 					<!-- Lets password managers file the new password under this account. -->
@@ -137,12 +121,12 @@
 						aria-hidden="true"
 					/>
 					<label class="field">
-						<span>{library.lock ? 'New password' : 'Password'}</span>
+						<span>{library.lock ? t.account.newPassword : t.common.password}</span>
 						<input type="password" autocomplete="new-password" bind:value={newPassword} />
 						{#if lockError?.field === 'new'}<span class="error">{lockError.message}</span>{/if}
 					</label>
 					<label class="field">
-						<span>Repeat it</span>
+						<span>{t.account.repeat}</span>
 						<input type="password" autocomplete="new-password" bind:value={repeat} />
 						{#if lockError?.field === 'repeat'}<span class="error">{lockError.message}</span>{/if}
 					</label>
@@ -152,49 +136,48 @@
 					{#if lockDone}<p role="status">{lockDone}</p>{/if}
 					<div class="row">
 						<button class="button" disabled={lockBusy || !library.online}>
-							{lockBusy ? 'Encrypting…' : library.lock ? 'Change password' : 'Lock with password'}
+							{lockBusy
+								? t.account.encrypting
+								: library.lock
+									? t.account.changePassword
+									: t.account.lockWithPassword}
 						</button>
 						{#if library.lock}
 							<button
 								type="button"
 								class="link"
 								disabled={lockBusy || !library.online}
-								onclick={() => changeLock(null, true)}>Remove the lock</button
+								onclick={() => changeLock(null, true)}>{t.account.removeLock}</button
 							>
 							<button type="button" class="link" onclick={() => library.lockDevice()}
-								>Lock this device now</button
+								>{t.account.lockDevice}</button
 							>
 						{/if}
 					</div>
-					{#if !library.online}<p class="hint">Changing the lock needs a connection.</p>{/if}
+					{#if !library.online}<p class="hint">{t.account.lockNeedsConnection}</p>{/if}
 				</form>
 			{/if}
 		</section>
 	{:else}
-		<h1>{creating ? 'Create an account' : 'Sign in'}</h1>
+		<h1>{creating ? t.account.createHeading : t.account.signIn}</h1>
 		<p class="lede">
-			{#if library.mine.length > 0}
-				Your {library.mine.length === 1 ? 'thought stays' : `${library.mine.length} thoughts stay`} on
-				this device until you sign in. Then they move into your account and follow you to your other devices.
-			{:else}
-				An account keeps your own thoughts on all your devices. Reading needs no account.
-			{/if}
+			{library.mine.length > 0 ? t.account.localLede(library.mine.length) : t.account.lede}
 		</p>
 		<form onsubmit={enter}>
 			{#if creating}
 				<label class="field">
-					<span>Name</span>
+					<span>{t.account.name}</span>
 					<input autocomplete="name" required bind:value={name} />
 					{#if error?.field === 'name'}<span class="error">{error.message}</span>{/if}
 				</label>
 			{/if}
 			<label class="field">
-				<span>Email</span>
+				<span>{t.account.email}</span>
 				<input type="email" autocomplete="email" required bind:value={email} />
 				{#if error?.field === 'email'}<span class="error">{error.message}</span>{/if}
 			</label>
 			<label class="field">
-				<span>Password</span>
+				<span>{t.common.password}</span>
 				<input
 					type="password"
 					autocomplete={creating ? 'new-password' : 'current-password'}
@@ -208,7 +191,7 @@
 			{/if}
 			<div class="row">
 				<button class="button" disabled={busy || !library.online}>
-					{creating ? 'Create account' : 'Sign in'}
+					{creating ? t.account.createButton : t.account.signIn}
 				</button>
 				{#if library.settings.allow_sign_up || creating}
 					<button
@@ -217,13 +200,19 @@
 						onclick={() => {
 							creating = !creating;
 							error = null;
-						}}>{creating ? 'I have an account' : 'Create an account'}</button
+						}}>{creating ? t.account.haveAccount : t.account.createHeading}</button
 					>
 				{/if}
 			</div>
-			{#if !library.online}<p class="hint">Signing in needs a connection.</p>{/if}
+			{#if !library.online}<p class="hint">{t.account.signInNeedsConnection}</p>{/if}
 		</form>
 	{/if}
+
+	<section>
+		<h2>{t.menu.language}</h2>
+		<LanguagePicker />
+		{#if library.me}<p class="hint">{t.account.languageSaved}</p>{/if}
+	</section>
 </main>
 
 <style>

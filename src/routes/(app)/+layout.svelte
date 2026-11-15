@@ -5,6 +5,8 @@
 	import { library } from '#lib/client/library.svelte.ts';
 	import { makeAvailableOffline } from '#lib/client/offline.ts';
 	import { fontHref, look } from '#lib/client/look.svelte.ts';
+	import { i18n, t } from '#lib/client/i18n.svelte.ts';
+	import LanguagePicker from '#lib/components/LanguagePicker.svelte';
 	import { findTheme, THEMES } from '#lib/themes.ts';
 	import type { LayoutProps } from './$types';
 
@@ -27,6 +29,7 @@
 
 	$effect(() => {
 		const root = document.documentElement;
+		root.lang = i18n.locale;
 		root.dataset.theme = theme.id;
 		if (library.mode && theme.dark) root.dataset.mode = library.mode;
 		else delete root.dataset.mode;
@@ -48,15 +51,15 @@
 	});
 
 	const status = $derived.by(() => {
-		if (!library.online) return 'Offline. You are reading what is on this device.';
+		if (!library.online) return t.status.offline;
 		if (library.syncError) return library.syncError;
 		if (library.signedIn && library.pending > 0) {
 			return library.locked
-				? `${library.pending} changes wait until you unlock your thoughts here.`
-				: `${library.pending} changes waiting to sync.`;
+				? t.status.pendingLocked(library.pending)
+				: t.status.pending(library.pending);
 		}
-		if (library.signedIn) return 'Your thoughts are in sync.';
-		return 'Your thoughts are kept on this device. Sign in to keep them in sync.';
+		if (library.signedIn) return t.status.inSync;
+		return t.status.local;
 	});
 
 	const current = (href: string) => (page.url.pathname === href ? 'page' : undefined);
@@ -77,17 +80,19 @@
 
 <header class="bar">
 	<a class="name" href="/">{library.settings.site_name}</a>
-	{#if !library.online}<span class="offline">offline</span>{/if}
+	{#if !library.online}<span class="offline">{t.bar.offline}</span>{/if}
 	<nav>
-		<a class="link" href="/write" aria-current={current('/write')}>Write</a>
-		<button class="link" onclick={() => menu?.showModal()} aria-haspopup="dialog">Menu</button>
+		<a class="link" href="/write" aria-current={current('/write')}>{t.bar.write}</a>
+		<button class="link" onclick={() => menu?.showModal()} aria-haspopup="dialog"
+			>{t.bar.menu}</button
+		>
 	</nav>
 </header>
 
 {#if updated.current}
 	<p class="update">
-		A new version of {library.settings.site_name} is ready.
-		<button class="link" onclick={() => location.reload()}>Reload</button>
+		{t.bar.updateReady(library.settings.site_name)}
+		<button class="link" onclick={() => location.reload()}>{t.bar.reload}</button>
 	</p>
 {/if}
 
@@ -98,17 +103,17 @@
 <dialog
 	bind:this={menu}
 	class="sheet"
-	aria-label="Menu"
+	aria-label={t.bar.menu}
 	onclick={(event) => event.target === menu && menu.close()}
 >
 	<div class="sheet-body">
-		<button class="link close" onclick={() => menu?.close()}>Close</button>
+		<button class="link close" onclick={() => menu?.close()}>{t.menu.close}</button>
 
 		<section>
-			<h2 class="label">Read</h2>
+			<h2 class="label">{t.menu.read}</h2>
 			<ul class="places">
 				{#if library.settings.daily}
-					<li><a href="/" aria-current={current('/')}>Today</a></li>
+					<li><a href="/" aria-current={current('/')}>{t.menu.today}</a></li>
 				{/if}
 				{#each library.collections.filter((c) => c.slug !== 'default' || !library.settings.daily) as collection (collection.id)}
 					<li>
@@ -119,15 +124,15 @@
 					</li>
 				{/each}
 				<li>
-					<a href="/c/mine" aria-current={current('/c/mine')}>Your thoughts</a>
+					<a href="/c/mine" aria-current={current('/c/mine')}>{t.common.yourThoughts}</a>
 					<span class="count">{library.mine.length}</span>
 				</li>
 			</ul>
 		</section>
 
 		<section>
-			<h2 class="label">Theme</h2>
-			<div class="themes" role="radiogroup" aria-label="Theme">
+			<h2 class="label">{t.menu.theme}</h2>
+			<div class="themes" role="radiogroup" aria-label={t.menu.theme}>
 				{#each THEMES as option (option.id)}
 					<button
 						role="radio"
@@ -137,35 +142,40 @@
 						onclick={() => library.setTheme(option.id)}
 					>
 						<span class="sample" style:background={option.light}>Aa</span>
-						{option.name}
+						{t.themes[option.id] ?? option.name}
 					</button>
 				{/each}
 			</div>
 			{#if readerTheme.dark}
-				<div class="modes" role="radiogroup" aria-label="Light or dark">
-					{#each [['System', null], ['Light', 'light'], ['Dark', 'dark']] as const as [label, value] (label)}
+				<div class="modes" role="radiogroup" aria-label={t.menu.lightOrDark}>
+					{#each [null, 'light', 'dark'] as const as value (value)}
 						<button
 							role="radio"
 							class="link"
 							aria-checked={library.mode === value}
-							onclick={() => library.setMode(value)}>{label}</button
+							onclick={() => library.setMode(value)}>{t.menu.modes[value ?? 'system']}</button
 						>
 					{/each}
 				</div>
 			{/if}
 			{#if look.theme && look.theme !== readerTheme.id}
-				<p class="hint">This thought is set in its own theme.</p>
+				<p class="hint">{t.menu.ownTheme}</p>
 			{/if}
 		</section>
 
 		<section>
-			<h2 class="label">Account</h2>
+			<h2 class="label">{t.menu.language}</h2>
+			<LanguagePicker />
+		</section>
+
+		<section>
+			<h2 class="label">{t.menu.account}</h2>
 			<p class="status">{status}</p>
 			<p>
-				<a href="/account">{library.me ? library.me.name : 'Sign in or create an account'}</a>
+				<a href="/account">{library.me ? library.me.name : t.menu.signInOrCreate}</a>
 			</p>
 			{#if library.me?.role === 'admin'}
-				<p><a href="/admin" data-sveltekit-reload>Dashboard</a></p>
+				<p><a href="/admin" data-sveltekit-reload>{t.menu.dashboard}</a></p>
 			{/if}
 		</section>
 	</div>

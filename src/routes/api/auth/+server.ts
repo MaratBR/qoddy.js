@@ -13,7 +13,7 @@ import {
 const text = (value: unknown) => (typeof value === 'string' ? value : '');
 
 /**
- * `{ action: 'signin' | 'signup', email, password, name? }` starts a session;
+ * `{ action: 'signin' | 'signup', email, password, name?, locale? }` starts a session;
  * `{ action: 'signout' }` ends this one. Answers `{ ok: true }` or an error.
  */
 export const POST: RequestHandler = async ({ request, cookies }) => {
@@ -30,9 +30,15 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 		let user;
 		if (action === 'signin') {
 			user = await authenticate(db(), credentials.email, credentials.password);
-			if (!user) return invalid(new Invalid('Wrong email or password.', 'password'), 401);
+			if (!user) {
+				return invalid(new Invalid('Wrong email or password.', 'password', 'wrong_password'), 401);
+			}
 		} else if (action === 'signup') {
-			user = await signUp(db(), { ...credentials, name: text(body.name) });
+			user = await signUp(db(), {
+				...credentials,
+				name: text(body.name),
+				locale: text(body.locale)
+			});
 		} else {
 			throw new Invalid('Unknown action.');
 		}
