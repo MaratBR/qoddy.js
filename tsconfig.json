@@ -2,14 +2,9 @@
 	"extends": "$app/tsconfig",
 	"compilerOptions": {
 		"strict": true,
-		"types": [
-			"$app/types",
-			"node"
-		]
+		"erasableSyntaxOnly": true,
+		"types": ["$app/types", "node"]
 	},
-	"include": [
-		"src",
-		"vite.config.ts",
-		"prettier.config.js"
-	]
+	"include": ["src", "scripts", "vite.config.ts", "prettier.config.js"],
+	"exclude": ["src/service-worker"]
 }

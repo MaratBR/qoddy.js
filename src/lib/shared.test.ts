@@ -1,0 +1,108 @@
+import { describe, expect, it } from 'vitest';
+import { renderMarkdown } from './markdown.ts';
+import { parseCsv, parseCsvRecords, CsvError } from './csv.ts';
+import { addDays, dayNumber, dayOfYear, isDate, ofTheDay } from './days.ts';
+import { checkThought, sizeClass } from './thought.ts';
+
+describe('markdown', () => {
+	it('renders simple markup', () => {
+		expect(renderMarkdown('Hello **bold** and *em* and _em_ and `x*y*`')).toBe(
+			'<p>Hello <strong>bold</strong> and <em>em</em> and <em>em</em> and <code>x*y*</code></p>'
+		);
+		expect(renderMarkdown('# Head\n\nline one\nline two')).toBe(
+			'<h3>Head</h3>\n<p>line one<br>line two</p>'
+		);
+		expect(renderMarkdown('- a\n- b\n  more\n\n3. c\n4. d')).toBe(
+			'<ul><li>a</li><li>b<br>more</li></ul>\n<ol start="3"><li>c</li><li>d</li></ol>'
+		);
+		expect(renderMarkdown('> quoted\n> > deeper\n\n---')).toBe(
+			'<blockquote><p>quoted</p>\n<blockquote><p>deeper</p></blockquote></blockquote>\n<hr>'
+		);
+	});
+
+	it('keeps underscores inside words and links', () => {
+		expect(renderMarkdown('snake_case_name')).toBe('<p>snake_case_name</p>');
+		expect(renderMarkdown('[see *this*](https://example.com/a_b_c?x=1&y=2)')).toBe(
+			'<p><a href="https://example.com/a_b_c?x=1&amp;y=2" rel="noopener noreferrer nofollow">see <em>this</em></a></p>'
+		);
+	});
+
+	it('never lets markup or unsafe links through', () => {
+		const html = renderMarkdown(
+			'<script>alert(1)</script> <img src=x onerror=alert(1)>\n[x](javascript:alert(1)) [y](https://a.com/"onmouseover="alert(1))'
+		);
+		expect(html).not.toMatch(/<script|<img|href="javascript|"onmouseover/);
+		expect(html).toContain('&lt;script&gt;');
+		expect(renderMarkdown('\\*not em\\*')).toBe('<p>*not em*</p>');
+		expect(renderMarkdown('a\u0000b')).toBe('<p>ab</p>');
+	});
+});
+
+describe('csv', () => {
+	it('parses quotes, commas and line breaks', () => {
+		expect(parseCsv('a,b\n"x, ""y""","multi\nline"\r\n\n')).toEqual([
+			['a', 'b'],
+			['x, "y"', 'multi\nline']
+		]);
+		expect(parseCsvRecords('text , author\nHi,Me')).toEqual([
+			{ line: 2, record: { text: 'Hi', author: 'Me' } }
+		]);
+	});
+
+	it('rejects broken input', () => {
+		expect(() => parseCsv('"open')).toThrow(CsvError);
+		expect(() => parseCsvRecords('a,b\n1')).toThrow(/expected 2 fields/);
+	});
+});
+
+describe('days', () => {
+	it('counts calendar days', () => {
+		expect(dayNumber('1970-01-02')).toBe(1);
+		expect(addDays('2024-02-28', 1)).toBe('2024-02-29');
+		expect(addDays('2024-03-01', -1)).toBe('2024-02-29');
+		expect(dayOfYear('2026-02-01')).toBe(32);
+		expect(isDate('2026-02-30')).toBe(false);
+		expect(isDate('2026-12-31')).toBe(true);
+	});
+
+	it('rotates through items one per day', () => {
+		const items = ['a', 'b', 'c'];
+		const first = ofTheDay(items, '2026-01-01');
+		const next = ofTheDay(items, '2026-01-02');
+		expect(items.indexOf(next!)).toBe((items.indexOf(first!) + 1) % 3);
+		expect(ofTheDay(items, '2026-01-04')).toBe(first);
+		expect(ofTheDay([], '2026-01-01')).toBeUndefined();
+		expect(ofTheDay(items, '1960-01-01')).toBeDefined();
+	});
+});
+
+describe('thought', () => {
+	it('validates and normalizes', () => {
+		const checked = checkThought({ text: '  Know thyself. ', color: '#AABBCC', author: ' ' });
+		expect(checked).toEqual({
+			ok: true,
+			value: {
+				text: 'Know thyself.',
+				author: null,
+				source: null,
+				notes: null,
+				lang: null,
+				theme: null,
+				color: '#aabbcc',
+				font: null
+			}
+		});
+		expect(checkThought({ text: '' })).toMatchObject({ ok: false, field: 'text' });
+		expect(checkThought({ text: 'x', theme: 'nope' })).toMatchObject({ ok: false, field: 'theme' });
+		expect(checkThought({ text: 'x', font: 'A");}' })).toMatchObject({ ok: false, field: 'font' });
+		expect(checkThought({ text: 'x', lang: 'zh-Hans' })).toMatchObject({ ok: true });
+		expect(checkThought({ text: 'x', lang: 'e' })).toMatchObject({ ok: false, field: 'lang' });
+	});
+
+	it('sizes text by length', () => {
+		expect(sizeClass('Short.')).toBe('short');
+		expect(sizeClass('x'.repeat(300))).toBe('long');
+		// 45 CJK characters count as 90: neither short nor long.
+		expect(sizeClass('学'.repeat(45))).toBeUndefined();
+	});
+});
