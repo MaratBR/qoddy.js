@@ -54,7 +54,8 @@
 	<nav class="pages" aria-label="Pages">
 		{#if data.listing.page > 1}<a href={pageHref(data.listing.page - 1)}>Newer</a>{/if}
 		<span class="muted">Page {data.listing.page} of {data.listing.pages}</span>
-		{#if data.listing.page < data.listing.pages}<a href={pageHref(data.listing.page + 1)}>Older</a>{/if}
+		{#if data.listing.page < data.listing.pages}<a href={pageHref(data.listing.page + 1)}>Older</a
+			>{/if}
 	</nav>
 {/if}
 
@@ -106,8 +107,8 @@
 	<section>
 		<h2>Delete</h2>
 		<p>
-			Deleting removes the collection and its {data.listing.total} thoughts from every device on its
-			next sync. Readers keep any they kept in their own thoughts.
+			Deleting removes the collection and its {data.listing.total} thoughts from every device on its next
+			sync. Readers keep any they kept in their own thoughts.
 		</p>
 		<form method="post" action="?/delete">
 			<label class="field">

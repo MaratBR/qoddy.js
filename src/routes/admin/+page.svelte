@@ -50,7 +50,9 @@
 		</div>
 		<label class="field">
 			<span>Description</span>
-			<textarea name="description" rows="2" maxlength="500">{form?.values?.description ?? ''}</textarea>
+			<textarea name="description" rows="2" maxlength="500"
+				>{form?.values?.description ?? ''}</textarea
+			>
 		</label>
 		{#if form?.error && !form.field}<p class="error">{form.error}</p>{/if}
 		<button class="button">Create collection</button>

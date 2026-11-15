@@ -14,7 +14,11 @@ export const actions: Actions = {
 		requireAdmin(locals);
 		const values = fields(await request.formData());
 		const result = await attempt(values, () =>
-			createCollection(db(), { slug: values.slug, name: values.name, description: values.description })
+			createCollection(db(), {
+				slug: values.slug,
+				name: values.name,
+				description: values.description
+			})
 		);
 		if (!result.ok) return result.failure;
 		redirect(303, `/admin/c/${result.value.slug}`);

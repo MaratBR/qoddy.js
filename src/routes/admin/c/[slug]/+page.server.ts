@@ -27,7 +27,13 @@ export const load: PageServerLoad = ({ locals, params, url }) => {
 		search,
 		page: Number(url.searchParams.get('page')) || 1
 	});
-	return { collection, listing, search, columns: CSV_COLUMNS, imported: url.searchParams.get('imported') };
+	return {
+		collection,
+		listing,
+		search,
+		columns: CSV_COLUMNS,
+		imported: url.searchParams.get('imported')
+	};
 };
 
 export const actions: Actions = {

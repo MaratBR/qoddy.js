@@ -34,9 +34,9 @@
 		<blockquote dir="auto" lang={values.lang || undefined}>{preview.text}</blockquote>
 		{#if preview.author || preview.source}
 			<figcaption>
-				{preview.author ?? ''}{preview.author && preview.source ? ', ' : ''}{#if preview.source}<cite
-						>{preview.source}</cite
-					>{/if}
+				{preview.author ?? ''}{preview.author && preview.source
+					? ', '
+					: ''}{#if preview.source}<cite>{preview.source}</cite>{/if}
 			</figcaption>
 		{/if}
 		{#if preview.notes}
@@ -48,13 +48,8 @@
 <form method="post" action="?/save">
 	<label class="field">
 		<span>Thought</span>
-		<textarea
-			name="text"
-			rows="4"
-			required
-			maxlength={LIMITS.text}
-			dir="auto"
-			class="thought-text">{values.text ?? ''}</textarea
+		<textarea name="text" rows="4" required maxlength={LIMITS.text} dir="auto" class="thought-text"
+			>{values.text ?? ''}</textarea
 		>
 		{#if error('text')}<span class="error">{error('text')}</span>{/if}
 	</label>
@@ -112,7 +107,12 @@
 					<input type="checkbox" name="tinted" checked={!!values.tinted} />
 					Tint the page
 				</label>
-				<input type="color" name="color" aria-label="Tint color" value={values.color || '#7a5c3e'} />
+				<input
+					type="color"
+					name="color"
+					aria-label="Tint color"
+					value={values.color || '#7a5c3e'}
+				/>
 				{#if error('color')}<span class="error">{error('color')}</span>{/if}
 			</div>
 			<label class="field">

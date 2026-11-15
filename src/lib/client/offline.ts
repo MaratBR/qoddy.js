@@ -28,7 +28,11 @@ export function makeAvailableOffline(): void {
 		return;
 	}
 	// First visit: the worker claims this page when it activates.
-	container.addEventListener('controllerchange', () => {
-		if (container.controller) warm(container.controller);
-	}, { once: true });
+	container.addEventListener(
+		'controllerchange',
+		() => {
+			if (container.controller) warm(container.controller);
+		},
+		{ once: true }
+	);
 }

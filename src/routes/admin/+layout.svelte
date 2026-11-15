@@ -17,7 +17,9 @@
 	<aside>
 		<p class="site"><a href="/">{data.siteName}</a></p>
 		<nav aria-label="Dashboard">
-			<a href="/admin" aria-current={/^\/admin(\/[ct]\/.*)?$/.test(page.url.pathname) ? 'page' : undefined}
+			<a
+				href="/admin"
+				aria-current={/^\/admin(\/[ct]\/.*)?$/.test(page.url.pathname) ? 'page' : undefined}
 				>Collections</a
 			>
 			<a href="/admin/settings" aria-current={here('/admin/settings', true)}>Settings</a>

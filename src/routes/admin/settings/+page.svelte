@@ -53,7 +53,8 @@
 			Anyone can create an account
 		</label>
 		<span class="hint">
-			Accounts sync a reader’s own thoughts between devices. Without one, thoughts stay on the device.
+			Accounts sync a reader’s own thoughts between devices. Without one, thoughts stay on the
+			device.
 		</span>
 	</div>
 
