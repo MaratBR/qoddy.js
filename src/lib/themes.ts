@@ -13,9 +13,9 @@ export interface Theme {
 
 /** The first theme is the fallback default. */
 export const THEMES: readonly Theme[] = [
-	{ id: 'dawn', name: 'Dawn', light: '#f4ede4', dark: '#1d1a1f' },
-	{ id: 'nocturne', name: 'Nocturne', light: '#121527' },
-	{ id: 'studio', name: 'Studio', light: '#f3f3f0', dark: '#111111' }
+	{ id: 'morning', name: 'Morning', light: '#e8ece6', dark: '#151a17' },
+	{ id: 'vesper', name: 'Vesper', light: '#231b2c' },
+	{ id: 'field', name: 'Field', light: '#f4eec8' }
 ];
 
 export function findTheme(id: string | null | undefined): Theme | undefined {

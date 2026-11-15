@@ -43,7 +43,7 @@ const MIGRATIONS: string[] = [
 		daily INTEGER NOT NULL,
 		rev INTEGER NOT NULL
 	);
-	INSERT INTO settings VALUES (1, 'Qoddy', 1, 'dawn', 1, 1);
+	INSERT INTO settings VALUES (1, 'Qoddy', 1, 'morning', 1, 1);
 	CREATE TABLE collection (
 		id INTEGER PRIMARY KEY,
 		slug TEXT NOT NULL UNIQUE,

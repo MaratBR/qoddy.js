@@ -72,7 +72,7 @@ describe('settings', () => {
 		expect(getSettings(db)).toMatchObject({
 			site_name: 'Qoddy',
 			daily: true,
-			default_theme: 'dawn'
+			default_theme: 'morning'
 		});
 		setSetting(db, 'daily', 'false');
 		expect(getSettings(db).daily).toBe(false);

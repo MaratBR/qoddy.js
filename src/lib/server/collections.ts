@@ -9,6 +9,8 @@ import { parseCsvRecords, CsvError } from '../csv.ts';
 import { checkThought, isId, newId, type ThoughtFields } from '../thought.ts';
 
 export const DEFAULT_SLUG = 'default';
+/** Reserved: the reader's personal collection in the app's URLs. */
+export const MINE_SLUG = 'mine';
 
 export interface Collection {
 	id: number;
@@ -51,6 +53,8 @@ function checkCollection(input: { slug: string; name: string; description?: stri
 	if (!/^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/.test(slug)) {
 		throw new Invalid('Use lowercase letters, digits and dashes (up to 40).', 'slug');
 	}
+	// `/c/mine` is each reader's personal collection.
+	if (slug === MINE_SLUG) throw new Invalid('That address is reserved.', 'slug');
 	if (!name || name.length > 80) throw new Invalid('Give it a name (up to 80 characters).', 'name');
 	if (description.length > 500) throw new Invalid('Keep it under 500 characters.', 'description');
 	return { slug, name, description };

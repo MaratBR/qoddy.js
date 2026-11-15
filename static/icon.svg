@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Qoddy: a Q whose tail is a quotation mark. -->
+  <rect width="512" height="512" fill="#f5efe3"/>
+  <g transform="translate(-5 -17)">
+    <circle cx="228" cy="232" r="122" fill="none" stroke="#221d18" stroke-width="52"/>
+    <path fill="#8a2c1d" d="M380 334C382 398 350 438 296 458C328 432 342 408 340 384A50 50 0 1 1 380 334Z"/>
+  </g>
+</svg>

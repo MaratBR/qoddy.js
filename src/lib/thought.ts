@@ -49,7 +49,8 @@ export function validLang(value: string): boolean {
 }
 
 /** Validates and normalizes untrusted input. Unknown keys are ignored. */
-export function checkThought(input: Record<string, unknown>): Checked {
+export function checkThought(raw: object): Checked {
+	const input = raw as Record<string, unknown>;
 	const text = clean(input.text);
 	if (!text) return { ok: false, field: 'text', error: 'Write the thought itself.' };
 	const value: ThoughtFields = {

@@ -12,75 +12,12 @@
 // server refuses as older comes back in the response with the server's copy.
 
 import { currentRev, Invalid, nextRev, transaction, type Db } from './db.ts';
-import { getSettings, type Settings } from './settings.ts';
+import { getSettings } from './settings.ts';
 import { findUser, setTheme, type User } from './accounts.ts';
 import { isId } from '../thought.ts';
+import type { Lock, MineItem, SyncRequest, SyncResponse } from '../wire.ts';
 
-/** Encryption parameters for a locked personal collection. */
-export interface Lock {
-	/** Id of the key every item is encrypted with. */
-	key: string;
-	/** PBKDF2 salt, base64. */
-	salt: string;
-	iterations: number;
-	/** A known value encrypted with the key, to tell a wrong password. */
-	check: { iv: string; data: string };
-}
-
-export interface MineItem {
-	id: string;
-	/** JSON of the thought, an encrypted envelope, or '' once deleted. */
-	data: string;
-	/** Key id `data` is encrypted with; '' for plain JSON. */
-	key: string;
-	updatedAt: number;
-	deleted: boolean;
-}
-
-export interface SyncRequest {
-	/** Highest `rev` already applied to this device's public data. */
-	since: number;
-	/** Same, for the personal collection (reset when the account changes). */
-	mineSince: number;
-	/** The reader's theme choice, when it changed on this device. */
-	theme?: string | null;
-	mine?: {
-		/** A new lock (or null to unlock for good), based on the lock at `base`. */
-		lock?: { base: number; value: Lock | null };
-		items: MineItem[];
-	};
-}
-
-export interface SyncResponse {
-	rev: number;
-	/** The device's cursor is ahead of the server (restored database): start over. */
-	reset?: true;
-	settings?: Omit<Settings, 'allow_sign_up'> & { allow_sign_up: boolean };
-	collections: { id: number; slug: string; name: string; description: string; deleted: boolean }[];
-	thoughts: {
-		id: string;
-		seq: number;
-		collection_id: number;
-		text: string;
-		author: string | null;
-		source: string | null;
-		notes: string | null;
-		lang: string | null;
-		theme: string | null;
-		color: string | null;
-		font: string | null;
-		deleted: boolean;
-	}[];
-	me: Pick<User, 'id' | 'email' | 'name' | 'role' | 'theme'> | null;
-	mine?: {
-		lock: Lock | null;
-		/** Revision of the lock, the `base` for changing it. */
-		lockRev: number;
-		items: MineItem[];
-		/** Pushed items not saved, and why: `key` (stale key), `lock` (lock changed first), `limit`. */
-		rejected: { id: string; reason: 'key' | 'lock' | 'limit' }[];
-	};
-}
+export type { Lock, MineItem, SyncRequest, SyncResponse };
 
 export const MAX_ITEMS = 5000;
 export const MAX_ITEM_BYTES = 256 * 1024;

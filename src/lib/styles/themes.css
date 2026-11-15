@@ -1,0 +1,105 @@
+/*
+ * Themes: tokens only, chosen by <html data-theme>. Base styles read tokens and
+ * never colors or fonts directly. A thought's own color arrives as
+ * --thought-color with <html data-tinted>, and each theme weaves it in its way.
+ *
+ * Light/dark: themes using light-dark() follow color-scheme, which the reader
+ * can pin with <html data-mode>. Single-mode themes set it themselves, after.
+ */
+@import '@fontsource-variable/alegreya/wght.css';
+@import '@fontsource-variable/alegreya/wght-italic.css';
+@import '@fontsource-variable/bodoni-moda/opsz.css';
+@import '@fontsource-variable/bodoni-moda/opsz-italic.css';
+@import '@fontsource-variable/bricolage-grotesque/opsz.css';
+
+/* Morning: fog-green paper, green-black ink, a calligraphic humanist serif. */
+:root,
+:root[data-theme='morning'] {
+	color-scheme: light dark;
+	--paper: light-dark(#e8ece6, #151a17);
+	--ink: light-dark(#1c2420, #e4e9e2);
+	--muted: light-dark(#5a665f, #98a59d);
+	--rule: light-dark(#c6cfc6, #2e3832);
+	--accent: light-dark(#2e4a8c, #a3b6ee);
+	--wash: color-mix(in oklab, var(--ink) 6%, var(--paper));
+	--font: 'Alegreya Variable', 'Iowan Old Style', Georgia, serif;
+	--leading: 1.6;
+	--thought-weight: 430;
+	--thought-style: normal;
+	--thought-tracking: -0.012em;
+	--thought-leading: 1.12;
+	--date-style: italic;
+	--radius: 8px;
+	--lift: 0 1.25rem 3rem -1.5rem color-mix(in oklab, #0b1410 55%, transparent);
+}
+:root[data-tinted]:not([data-theme='vesper'], [data-theme='field']) {
+	--accent: light-dark(
+		color-mix(in oklab, var(--thought-color) 78%, #1c2420),
+		color-mix(in oklab, var(--thought-color) 55%, #e4e9e2)
+	);
+	--paper: light-dark(
+		color-mix(in oklab, var(--thought-color) 8%, #e8ece6),
+		color-mix(in oklab, var(--thought-color) 10%, #151a17)
+	);
+}
+
+/* The reader's pinned mode, for themes that have both (after Morning, before
+ * the single-mode themes, which must win). */
+:root[data-mode='light'] {
+	color-scheme: light;
+}
+:root[data-mode='dark'] {
+	color-scheme: dark;
+}
+
+/* Vesper: an evening theme. Aubergine dusk, ivory ink, a high-contrast didone. */
+:root[data-theme='vesper'] {
+	color-scheme: dark;
+	--paper: #231b2c;
+	--ink: #f2e8dc;
+	--muted: #b3a1b5;
+	--rule: #43364e;
+	--accent: #d6a6d3;
+	--wash: color-mix(in oklab, var(--ink) 7%, var(--paper));
+	--font: 'Bodoni Moda Variable', Didot, 'Bodoni 72', serif;
+	--leading: 1.6;
+	--thought-weight: 400;
+	--thought-style: italic;
+	--thought-tracking: -0.01em;
+	--thought-leading: 1.14;
+	--date-style: normal;
+	--radius: 3px;
+	--lift: 0 1.25rem 3rem -1rem color-mix(in oklab, #0c0810 75%, transparent);
+}
+:root[data-theme='vesper'][data-tinted] {
+	--paper: color-mix(in oklab, var(--thought-color) 22%, #1d1625);
+	--accent: color-mix(in oklab, var(--thought-color) 45%, #f2e8dc);
+	--rule: color-mix(in oklab, var(--thought-color) 30%, #43364e);
+}
+
+/* Field: sunlit paper, cobalt, a lively grotesque set tight and heavy. */
+:root[data-theme='field'] {
+	color-scheme: light;
+	--paper: #f4eec8;
+	--ink: #1c1b12;
+	--muted: #66614a;
+	--rule: #d8ce9b;
+	--accent: #2c47d0;
+	--wash: color-mix(in oklab, var(--ink) 6%, var(--paper));
+	--font: 'Bricolage Grotesque Variable', 'Helvetica Neue', Arial, sans-serif;
+	--leading: 1.5;
+	--thought-weight: 640;
+	--thought-style: normal;
+	--thought-tracking: -0.035em;
+	--thought-leading: 1.02;
+	--date-style: normal;
+	--radius: 14px;
+	--lift: 0 1rem 2.5rem -1rem color-mix(in oklab, #3a3410 45%, transparent);
+}
+/* The whole sheet takes the thought's color; ink stays dark for contrast. */
+:root[data-theme='field'][data-tinted] {
+	--paper: color-mix(in oklab, var(--thought-color) 16%, #f8f5e2);
+	--rule: color-mix(in oklab, var(--thought-color) 38%, #d8ce9b);
+	--muted: color-mix(in oklab, var(--thought-color) 30%, #4a4636);
+	--accent: color-mix(in oklab, var(--thought-color) 80%, #1c1b12);
+}
