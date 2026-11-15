@@ -29,14 +29,14 @@ The home page is today's thought from the **default** collection, with its autho
 
 The page fits the window: a thought too long for it is set smaller (down to 55% of its size) rather than scroll.
 
-**Menu** lists the collections (each at `/c/<slug>`, plus `/c/<slug>/all`), **Your thoughts**, the theme picker and the account. **Write** opens the editor for a thought of your own.
+**Menu** lists the collections (each at `/c/<slug>`, plus `/c/<slug>/all`), **Your thoughts**, the theme picker and the account. **Write** opens the editor for a thought of your own. The editor is set like the thought's page: the text in its reading size, the attribution under it, and notes and style folded away. Ctrl/⌘ + Enter saves.
 
 ## Thoughts
 
 A thought is its text plus optional fields:
 
 - **author** and **source**: leave both empty for your own thought.
-- **notes**: an explanation in simple Markdown (paragraphs, `**bold**`, `*italic*`, `` `code` ``, links, lists, `>` quotes, `#` headings, `---`). The renderer escapes everything first and allows only `http(s)` and `mailto` links, so notes can never carry HTML.
+- **notes**: an explanation in simple Markdown (paragraphs, `**bold**`, `*italic*`, `` `code` ``, links, lists, `>` quotes, `#` headings, `---`). The renderer escapes everything first and allows only `http(s)` and `mailto` links, so notes can never carry HTML. In the reading app, notes are edited as they read (Tiptap, limited to what the renderer knows) and written back as Markdown by `toMarkdown` in `markdown.ts`.
 - **lang**: sets the text's language and direction, which drives quotation marks, CJK sizing and right-to-left layout.
 - **theme**, **color**, **font**: override the reader's theme on that thought's page. `color` tints the page and `font` is any Google Fonts family, loaded for that thought only.
 

@@ -148,10 +148,18 @@ export const en = {
 		source: 'Where it comes from',
 		sourceHint: 'A book, a talk, a walk',
 		notes: 'Notes',
-		editNotes: 'Edit notes',
-		previewNotes: 'Preview notes',
-		notesHint:
-			'What it means to you, or where it came from. **Bold**, *italic*, lists, > quotes and [links](https://…) work.',
+		notesPlaceholder: 'What it means to you, or where it came from',
+		format: {
+			label: 'Formatting',
+			bold: 'Bold',
+			italic: 'Italic',
+			heading: 'Heading',
+			list: 'List',
+			numbered: 'Numbered list',
+			quote: 'Quote',
+			link: 'Link',
+			linkPrompt: 'Link address (leave empty to remove the link)'
+		},
 		style: 'Style and language',
 		theme: 'Theme',
 		readersTheme: 'The reader’s own',

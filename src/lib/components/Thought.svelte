@@ -83,7 +83,12 @@
 		</p>
 	{/if}
 	{#key thought.id}
-		<blockquote lang={thought.lang} dir="auto" class={sizeClass(thought.text)} class:quoted>
+		<blockquote
+			lang={thought.lang}
+			dir="auto"
+			class={['thought-type', sizeClass(thought.text)]}
+			class:quoted
+		>
 			<p>{thought.text}</p>
 		</blockquote>
 	{/key}
@@ -141,24 +146,8 @@
 	}
 	blockquote {
 		margin: 0;
-		font-family: var(--thought-font, var(--font));
-		font-weight: var(--thought-weight);
-		font-style: var(--thought-style);
-		letter-spacing: var(--thought-tracking);
-		line-height: var(--thought-leading);
-		font-size: calc(clamp(2rem, 1.2rem + 3.6vw, 4.25rem) * var(--fit, 1));
-		max-width: 16em;
 		quotes: auto;
 		animation: arrive 0.9s cubic-bezier(0.2, 0.6, 0.2, 1) both;
-	}
-	blockquote.short {
-		font-size: calc(clamp(2.5rem, 1.2rem + 5.4vw, 6rem) * var(--fit, 1));
-		max-width: 12em;
-	}
-	blockquote.long {
-		font-size: calc(clamp(1.45rem, 1rem + 1.7vw, 2.4rem) * var(--fit, 1));
-		max-width: 24em;
-		line-height: calc(var(--thought-leading) + 0.12);
 	}
 	blockquote p {
 		margin: 0;

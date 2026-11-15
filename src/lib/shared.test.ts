@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { renderMarkdown } from './markdown.ts';
+import { escapeHtml, renderMarkdown, toMarkdown, type DocNode } from './markdown.ts';
 import { parseCsv, parseCsvRecords, CsvError } from './csv.ts';
 import { addDays, dayNumber, dayOfYear, isDate, ofTheDay } from './days.ts';
 import { checkThought, sizeClass } from './thought.ts';
@@ -63,6 +63,98 @@ describe('markdown', () => {
 		expect(html).toContain('&lt;script&gt;');
 		expect(renderMarkdown('\\*not em\\*')).toBe('<p>*not em*</p>');
 		expect(renderMarkdown('a\u0000b')).toBe('<p>ab</p>');
+	});
+
+	it('restores escapes inside code and code inside links', () => {
+		expect(renderMarkdown('\\> not quoted')).toBe('<p>&gt; not quoted</p>');
+		expect(renderMarkdown('`a\\\\b` [`c`](https://d.com)')).toBe(
+			'<p><code>a\\b</code> <a href="https://d.com" rel="noopener noreferrer nofollow"><code>c</code></a></p>'
+		);
+	});
+});
+
+describe('toMarkdown', () => {
+	const text = (value: string, ...marks: string[]): DocNode => ({
+		type: 'text',
+		text: value,
+		marks: marks.map((type) =>
+			type.includes(':') ? { type: 'link', attrs: { href: type } } : { type }
+		)
+	});
+	const doc = (...content: DocNode[]): DocNode => ({ type: 'doc', content });
+	const p = (...content: DocNode[]): DocNode => ({ type: 'paragraph', content });
+	const br: DocNode = { type: 'hardBreak' };
+	/** What the reader sees for the Markdown the editor writes. */
+	const shown = (node: DocNode) => renderMarkdown(toMarkdown(node));
+
+	it('writes every block the renderer knows', () => {
+		const item = (...content: DocNode[]) => ({ type: 'listItem', content: [p(...content)] });
+		const markdown = toMarkdown(
+			doc(
+				{ type: 'heading', attrs: { level: 3 }, content: [text('Head')] },
+				p(text('one'), br, text('two')),
+				{ type: 'bulletList', content: [item(text('a')), item(text('b'), br, text('more'))] },
+				{ type: 'orderedList', attrs: { start: 3 }, content: [item(text('c')), item(text('d'))] },
+				{
+					type: 'blockquote',
+					content: [p(text('quoted')), { type: 'blockquote', content: [p(text('deeper'))] }]
+				},
+				{ type: 'horizontalRule' }
+			)
+		);
+		expect(markdown).toBe(
+			'# Head\n\none\ntwo\n\n- a\n- b\n   more\n\n3. c\n4. d\n\n> quoted\n>\n> > deeper\n\n---'
+		);
+		expect(renderMarkdown(markdown)).toBe(
+			'<h3>Head</h3>\n<p>one<br>two</p>\n<ul><li>a</li><li>b<br>more</li></ul>\n<ol start="3"><li>c</li><li>d</li></ol>\n<blockquote><p>quoted</p>\n<blockquote><p>deeper</p></blockquote></blockquote>\n<hr>'
+		);
+	});
+
+	it('nests and splits marks the renderer can read', () => {
+		expect(
+			shown(doc(p(text('a ', 'bold'), text('both', 'bold', 'italic'), text(' c', 'bold'))))
+		).toBe('<p><strong>a <em>both</em> c</strong></p>');
+		expect(shown(doc(p(text('all', 'bold', 'italic'))))).toBe(
+			'<p><strong><em>all</em></strong></p>'
+		);
+		expect(shown(doc(p(text('in', 'italic'), text('word'))))).toBe('<p><em>in</em>word</p>');
+		expect(shown(doc(p(text('bold ', 'bold'), text('end'))))).toBe(
+			'<p><strong>bold</strong> end</p>'
+		);
+		expect(shown(doc(p(text('across', 'bold'), br, text('lines', 'bold'))))).toBe(
+			'<p><strong>across</strong><br><strong>lines</strong></p>'
+		);
+		expect(
+			shown(
+				doc(p(text('see ', 'https://a.com/x (1)'), text('this', 'https://a.com/x (1)', 'italic')))
+			)
+		).toBe(
+			'<p><a href="https://a.com/x%20%281%29" rel="noopener noreferrer nofollow">see <em>this</em></a></p>'
+		);
+		expect(shown(doc(p(text('a\\*b`', 'code'), text(' and '), text('c:\\x*', 'code'))))).toBe(
+			'<p>a\\*b` and <code>c:\\x*</code></p>'
+		);
+	});
+
+	it('keeps literal text literal', () => {
+		for (const literal of [
+			'# not a heading',
+			'> not a quote',
+			'- not a list',
+			'1. not a list',
+			'---',
+			'*a* _b_ [c](https://d.com) \\e'
+		]) {
+			expect(shown(doc(p(text(literal))))).toBe(`<p>${escapeHtml(literal)}</p>`);
+		}
+		expect(shown(doc(p(text('one'), br, text('- two'))))).toBe('<p>one<br>- two</p>');
+	});
+
+	it('drops unsafe links and empty blocks', () => {
+		expect(toMarkdown(doc(p(text('x', 'javascript:alert(1)'))))).toBe('x');
+		expect(toMarkdown(doc(p(), p(text('a'), br), { type: 'heading', attrs: { level: 3 } }))).toBe(
+			'a'
+		);
 	});
 });
 
