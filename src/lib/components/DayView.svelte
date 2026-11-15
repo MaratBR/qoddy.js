@@ -1,6 +1,6 @@
 <script lang="ts">
 	// The thought of the day from one source (a public collection, or `mine`),
-	// with a way back through earlier days: links, ← → keys, and swipes.
+	// with a way back through the last week: ticks, links, ← → keys, and swipes.
 	// Later days stay hidden: tomorrow's thought waits for tomorrow.
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -13,9 +13,13 @@
 	let { slug }: { slug: string } = $props();
 
 	const now = today();
+	/** The ticks: a fixed run ending two (unreachable) days after today. */
+	const ticks = Array.from({ length: 9 }, (_, i) => addDays(now, i - 6));
+	/** The furthest back a reader can go: the first tick. */
+	const earliest = ticks[0];
 	const date = $derived.by(() => {
 		const asked = page.url.searchParams.get('d') ?? '';
-		return isDate(asked) && asked < now ? asked : now;
+		return isDate(asked) && asked >= earliest && asked < now ? asked : now;
 	});
 	const mine = $derived(slug === 'mine');
 	const collection = $derived(mine ? undefined : library.collection(slug));
@@ -34,12 +38,9 @@
 			? label(date)
 			: label(date) + (date.slice(0, 4) === now.slice(0, 4) ? '' : `, ${date.slice(0, 4)}`)
 	);
-	/** Ticks for the days around this one; later than today is shown but not reachable. */
-	const ticks = $derived(Array.from({ length: 9 }, (_, i) => addDays(date, i - 6)));
-
 	function go(days: number) {
 		const day = addDays(date, days);
-		if (day <= now) void goto(href(day), { reset: false });
+		if (day >= earliest && day <= now) void goto(href(day), { reset: false });
 	}
 
 	function onkeydown(event: KeyboardEvent) {
@@ -113,7 +114,11 @@
 	{/if}
 
 	<footer>
-		<a class="link" href={href(addDays(date, -1))} data-sveltekit-reset="false">Previous day</a>
+		{#if date > earliest}
+			<a class="link" href={href(addDays(date, -1))} data-sveltekit-reset="false">Previous day</a>
+		{:else}
+			<span class="link" aria-hidden="true"></span>
+		{/if}
 		<ol class="ticks" aria-label="Days">
 			{#each ticks as day (day)}
 				<li>
