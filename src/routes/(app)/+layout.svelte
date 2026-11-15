@@ -3,6 +3,7 @@
 	import { page, updated } from '$app/state';
 	import { afterNavigate } from '$app/navigation';
 	import { library } from '#lib/client/library.svelte.ts';
+	import { makeAvailableOffline } from '#lib/client/offline.ts';
 	import { fontHref, look } from '#lib/client/look.svelte.ts';
 	import { findTheme, THEMES } from '#lib/themes.ts';
 	import type { LayoutProps } from './$types';
@@ -10,7 +11,10 @@
 	let { children }: LayoutProps = $props();
 	let menu: HTMLDialogElement | undefined = $state();
 
-	onMount(() => void library.init());
+	onMount(() => {
+		void library.init();
+		makeAvailableOffline();
+	});
 
 	// Close the menu on navigation; check for a new service worker meanwhile.
 	afterNavigate(() => {

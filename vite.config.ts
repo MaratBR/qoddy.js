@@ -10,7 +10,10 @@ export default defineConfig({
 				runes: ({ filename }) =>
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
-			adapter: adapter()
+			adapter: adapter(),
+			// The service worker serves one cached shell for every app page, so its
+			// asset URLs must not depend on the page's depth.
+			paths: { relative: false }
 		})
 	],
 	test: {
