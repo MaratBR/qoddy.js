@@ -91,7 +91,17 @@ const MIGRATIONS: string[] = [
 	CREATE INDEX personal_item_rev ON personal_item (user_id, rev);
 	`,
 	// The reader's language; null keeps whatever the device shows.
-	`ALTER TABLE user ADD COLUMN locale TEXT;`
+	`ALTER TABLE user ADD COLUMN locale TEXT;`,
+	// The home page's collection replaces the `daily` flag; null shows the reader's own thoughts.
+	// The new revision makes every device pull the changed settings.
+	`
+	ALTER TABLE settings ADD COLUMN home INTEGER REFERENCES collection (id);
+	UPDATE settings SET home = (SELECT id FROM collection WHERE slug = 'default' AND deleted = 0)
+		WHERE daily = 1;
+	ALTER TABLE settings DROP COLUMN daily;
+	UPDATE revision SET value = value + 1;
+	UPDATE settings SET rev = (SELECT value FROM revision);
+	`
 ];
 
 function migrate(db: Db): void {

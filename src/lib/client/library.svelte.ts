@@ -70,7 +70,7 @@ const DEFAULT_SETTINGS: PublicSettings = {
 	site_name: 'Qoddy',
 	allow_sign_up: true,
 	default_theme: THEMES[0].id,
-	daily: true
+	home: null
 };
 
 const INITIAL: State = {
@@ -179,6 +179,11 @@ class Library {
 		return this.collections.find((collection) => collection.slug === slug);
 	}
 
+	/** The home page shows this collection's thought of the day (its id is `settings.home`). */
+	isHome(collection: PublicCollection): boolean {
+		return collection.id === this.#state.settings.home;
+	}
+
 	/** A collection's thoughts in rotation order. */
 	thoughtsIn(collectionId: number): PublicThought[] {
 		return [...this.thoughts.values()]
@@ -217,7 +222,8 @@ class Library {
 				idb.entries<CryptoKey>('keys')
 			]);
 			const saved = meta.find(([key]) => key === 'state')?.[1] as Partial<State> | undefined;
-			this.#state = { ...INITIAL, ...saved };
+			// Settings saved by an older version may lack newer keys until the next sync.
+			this.#state = { ...INITIAL, ...saved, settings: { ...DEFAULT_SETTINGS, ...saved?.settings } };
 			this.collections = collections;
 			this.thoughts = new Map(thoughts.map((thought) => [thought.id, thought]));
 			this.#records = new Map(records.map((record) => [record.id, record]));

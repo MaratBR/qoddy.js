@@ -207,12 +207,28 @@
 		}
 	}
 	@media (max-width: 40rem) {
+		/* Centered, so the thought keeps even room from both edges of a narrow screen. */
+		article {
+			text-align: center;
+		}
 		.dateline {
+			justify-content: center;
 			margin-bottom: 1.25rem;
 		}
-		/* The opening mark hangs into the page margin (1.25rem); the text keeps the width. */
+		.actions {
+			justify-content: center;
+			margin-inline-start: 0;
+		}
+		/* Centered lines have no edge to hang from: the opening mark sits in the line. */
 		.quoted p::before {
+			position: static;
 			padding-inline-end: 0.02em;
+		}
+		.attribution {
+			text-wrap: balance;
+		}
+		.notes {
+			text-align: start;
 		}
 	}
 </style>

@@ -18,6 +18,7 @@ import {
 	deleteThought,
 	findCollection,
 	importCsv,
+	updateCollection,
 	updateThought
 } from './collections.ts';
 import { parseSyncRequest, sync, type Lock, type MineItem } from './sync.ts';
@@ -81,13 +82,40 @@ describe('settings', () => {
 	it('validates and syncs changes', () => {
 		expect(getSettings(db)).toMatchObject({
 			site_name: 'Qoddy',
-			daily: true,
+			home: defaultId(),
 			default_theme: 'morning'
 		});
-		setSetting(db, 'daily', 'false');
-		expect(getSettings(db).daily).toBe(false);
+		setSetting(db, 'allow_sign_up', 'false');
+		expect(getSettings(db).allow_sign_up).toBe(false);
 		expect(() => setSetting(db, 'default_theme', 'nope')).toThrow(Invalid);
-		expect(() => setSetting(db, 'pwa', 'true')).toThrow(/Unknown setting/);
+		expect(() => setSetting(db, 'daily', 'true')).toThrow(/Unknown setting/);
+	});
+
+	it('puts any public collection, or the reader’s own thoughts, on the home page', () => {
+		const stoics = createCollection(db, { slug: 'stoics', name: 'Stoics' });
+		const before = getSettings(db).rev;
+		setSetting(db, 'home', 'stoics');
+		expect(getSettings(db)).toMatchObject({ home: stoics.id });
+		expect(getSettings(db).rev).toBeGreaterThan(before);
+		setSetting(db, 'home', 'mine');
+		expect(getSettings(db).home).toBeNull();
+		expect(() => setSetting(db, 'home', 'nope')).toThrow(/No collection/);
+		expect(() => updateSettings(db, { home: 9999 })).toThrow(/no longer exists/);
+		expect(getSettings(db).home).toBeNull();
+	});
+
+	it('keeps the home collection until another takes its place', () => {
+		const stoics = createCollection(db, { slug: 'stoics', name: 'Stoics' });
+		updateSettings(db, { home: stoics.id });
+		// Home is kept by id, so its address can change.
+		updateCollection(db, stoics.id, { slug: 'stoa', name: 'Stoics' });
+		expect(getSettings(db).home).toBe(stoics.id);
+		expect(() => deleteCollection(db, stoics.id)).toThrow(/home page/);
+		deleteCollection(db, defaultId());
+		expect(findCollection(db, 'default')).toBeUndefined();
+		setSetting(db, 'home', 'mine');
+		deleteCollection(db, stoics.id);
+		expect(findCollection(db, 'stoa')).toBeUndefined();
 	});
 });
 
@@ -110,7 +138,7 @@ describe('collections', () => {
 
 		deleteThought(db, b.id);
 		expect(browseThoughts(db, defaultId()).total).toBe(0);
-		expect(() => deleteCollection(db, defaultId())).toThrow(/cannot be deleted/);
+		expect(() => deleteCollection(db, defaultId())).toThrow(/home page/);
 		deleteCollection(db, stoics.id);
 		expect(findCollection(db, 'stoics')).toBeUndefined();
 		// The address is free again.

@@ -1,8 +1,11 @@
 <script lang="ts">
-	// Home: the site's thought of the day, or, when the site turns that off,
-	// one of your own.
+	// Home: the thought of the day from the collection the site picks, or, when
+	// it leaves that to readers, one of your own.
 	import { library } from '#lib/client/library.svelte.ts';
 	import DayView from '#lib/components/DayView.svelte';
+
+	const home = $derived(library.collections.find((c) => library.isHome(c)));
 </script>
 
-<DayView slug={library.settings.daily ? 'default' : 'mine'} />
+<!-- A home collection not synced yet shows as missing, as any unknown one does. -->
+<DayView slug={library.settings.home === null ? 'mine' : (home?.slug ?? '')} />

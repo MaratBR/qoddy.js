@@ -7,10 +7,10 @@ import { db, Invalid } from '../src/lib/server/db.ts';
 import { createUser, setPassword, setRole } from '../src/lib/server/accounts.ts';
 import {
 	createCollection,
-	DEFAULT_SLUG,
 	findCollection,
 	importCsv,
-	listCollections
+	listCollections,
+	MINE_SLUG
 } from '../src/lib/server/collections.ts';
 import { getSettings, setSetting } from '../src/lib/server/settings.ts';
 
@@ -21,9 +21,11 @@ const USAGE = `Usage: pnpm qoddy <command>
   set-role <email> <admin|user>
   collections                            list public collections
   add-collection <slug> <name>
-  import <file.csv> [--collection <slug>]  columns: text, author, source, notes, lang, theme, color, font
+  import <file.csv> [--collection <slug>]  into the home page's collection unless given;
+                                         columns: text, author, source, notes, lang, theme, color, font
   settings                               show site settings
-  settings set <key> <value>             site_name, allow_sign_up, default_theme, daily`;
+  settings set <key> <value>             site_name, allow_sign_up, default_theme,
+                                         home (a collection's address, or mine: the reader's own)`;
 
 async function stdinPassword(): Promise<string> {
 	const chunks: Buffer[] = [];
@@ -78,11 +80,20 @@ async function main(argv: string[]): Promise<void> {
 			break;
 		case 'import': {
 			need(1);
-			const slug = values.collection ?? DEFAULT_SLUG;
-			const collection = findCollection(db(), slug);
-			if (!collection) throw new Invalid(`No collection ${slug}.`);
+			const { home } = getSettings(db());
+			const collection =
+				values.collection !== undefined
+					? findCollection(db(), values.collection)
+					: listCollections(db()).find((c) => c.id === home);
+			if (!collection) {
+				throw new Invalid(
+					values.collection !== undefined
+						? `No collection ${values.collection}.`
+						: 'The home page shows readers’ own thoughts; name a collection with --collection.'
+				);
+			}
 			const added = importCsv(db(), collection.id, readFileSync(args[0], 'utf8'));
-			console.log(`imported ${added} thoughts into ${slug}`);
+			console.log(`imported ${added} thoughts into ${collection.slug}`);
 			break;
 		}
 		case 'settings':
@@ -91,7 +102,10 @@ async function main(argv: string[]): Promise<void> {
 				setSetting(db(), args[1], args[2]);
 			} else need(0);
 			for (const [key, value] of Object.entries(getSettings(db()))) {
-				if (key !== 'rev') console.log(`${key} = ${value}`);
+				if (key === 'home') {
+					const home = listCollections(db()).find((c) => c.id === value);
+					console.log(`home = ${home?.slug ?? MINE_SLUG}`);
+				} else if (key !== 'rev') console.log(`${key} = ${value}`);
 			}
 			break;
 		default:

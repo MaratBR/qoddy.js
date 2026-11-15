@@ -112,10 +112,10 @@
 		<section>
 			<h2 class="label">{t.menu.read}</h2>
 			<ul class="places">
-				{#if library.settings.daily}
+				{#if library.settings.home !== null}
 					<li><a href="/" aria-current={current('/')}>{t.menu.today}</a></li>
 				{/if}
-				{#each library.collections.filter((c) => c.slug !== 'default' || !library.settings.daily) as collection (collection.id)}
+				{#each library.collections.filter((c) => !library.isHome(c)) as collection (collection.id)}
 					<li>
 						<a href="/c/{collection.slug}" aria-current={current(`/c/${collection.slug}`)}
 							>{collection.name}</a

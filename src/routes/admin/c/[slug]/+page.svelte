@@ -4,7 +4,6 @@
 	let { data, form }: PageProps = $props();
 	const error = (field: string) => (form?.field === field ? form.error : null);
 	const values = $derived((form?.values ?? {}) as Record<string, string | undefined>);
-	const isDefault = $derived(data.collection.slug === 'default');
 
 	const pageHref = (page: number) => {
 		const params = new URLSearchParams();
@@ -83,15 +82,11 @@
 			<input name="name" required maxlength="80" value={values.name ?? data.collection.name} />
 			{#if error('name')}<span class="error">{error('name')}</span>{/if}
 		</label>
-		{#if isDefault}
-			<p class="hint">The default collection always lives at the home page.</p>
-		{:else}
-			<label class="field">
-				<span>Address</span>
-				<input name="slug" required maxlength="40" value={values.slug ?? data.collection.slug} />
-				{#if error('slug')}<span class="error">{error('slug')}</span>{/if}
-			</label>
-		{/if}
+		<label class="field">
+			<span>Address</span>
+			<input name="slug" required maxlength="40" value={values.slug ?? data.collection.slug} />
+			{#if error('slug')}<span class="error">{error('slug')}</span>{/if}
+		</label>
 		<label class="field">
 			<span>Description</span>
 			<textarea name="description" rows="2" maxlength="500"
@@ -103,7 +98,15 @@
 	</form>
 </section>
 
-{#if !isDefault}
+{#if data.isHome}
+	<section>
+		<h2>Delete</h2>
+		<p>
+			The home page shows this collection’s thought of the day. To delete it, first choose another
+			home page in <a href="/admin/settings">Settings</a>.
+		</p>
+	</section>
+{:else}
 	<section>
 		<h2>Delete</h2>
 		<p>

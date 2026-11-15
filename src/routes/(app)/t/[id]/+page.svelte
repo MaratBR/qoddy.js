@@ -52,8 +52,7 @@
 		<p class="from">
 			{#if collection}
 				{t.thought.fromCollection}
-				<a href={collection.slug === 'default' ? '/' : `/c/${collection.slug}`}>{collection.name}</a
-				>
+				<a href={library.isHome(collection) ? '/' : `/c/${collection.slug}`}>{collection.name}</a>
 			{:else}
 				{t.thought.fromMine} <a href="/c/mine/all">{t.thought.yourThoughtsLink}</a>
 			{/if}
@@ -84,6 +83,7 @@
 		}
 		.from {
 			margin-top: 1.5rem;
+			text-align: center;
 		}
 	}
 </style>

@@ -1,12 +1,16 @@
 import { attempt, fields, requireAdmin } from '#lib/server/admin.ts';
 import { db } from '#lib/server/db.ts';
-import { getSettings, updateSettings } from '#lib/server/settings.ts';
+import { listCollections, MINE_SLUG } from '#lib/server/collections.ts';
+import { getSettings, homeFromSlug, updateSettings } from '#lib/server/settings.ts';
 import { THEMES } from '#lib/themes.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = ({ locals }) => {
 	requireAdmin(locals);
-	return { settings: getSettings(db()), themes: THEMES };
+	const settings = getSettings(db());
+	const collections = listCollections(db());
+	const home = collections.find((c) => c.id === settings.home)?.slug ?? MINE_SLUG;
+	return { settings, home, mine: MINE_SLUG, collections, themes: THEMES };
 };
 
 export const actions: Actions = {
@@ -18,7 +22,7 @@ export const actions: Actions = {
 				site_name: values.site_name ?? '',
 				default_theme: values.default_theme ?? '',
 				allow_sign_up: values.allow_sign_up === 'on',
-				daily: values.daily === 'on'
+				home: homeFromSlug(db(), values.home ?? '')
 			})
 		);
 		if (!result.ok) return result.failure;

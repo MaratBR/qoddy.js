@@ -33,15 +33,24 @@
 		{#if error('default_theme')}<span class="error">{error('default_theme')}</span>{/if}
 	</label>
 
-	<div class="field">
-		<label class="check">
-			<input type="checkbox" name="daily" checked={failed ? failed.daily === 'on' : s.daily} />
-			Show the thought of the day on the home page
-		</label>
+	<label class="field">
+		<span>Home page</span>
+		<select name="home">
+			{#each data.collections as collection (collection.id)}
+				<option value={collection.slug} selected={(failed?.home ?? data.home) === collection.slug}
+					>{collection.name}</option
+				>
+			{/each}
+			<option value={data.mine} selected={(failed?.home ?? data.home) === data.mine}
+				>Reader’s choice (their own thoughts)</option
+			>
+		</select>
 		<span class="hint">
-			Taken from the default collection. When off, the home page shows the reader’s own thoughts.
+			A collection gives every reader the same thought of the day. Reader’s choice turns that off:
+			each reader’s home page shows one of their own thoughts.
 		</span>
-	</div>
+		{#if error('home')}<span class="error">{error('home')}</span>{/if}
+	</label>
 
 	<div class="field">
 		<label class="check">

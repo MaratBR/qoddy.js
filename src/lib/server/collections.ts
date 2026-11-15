@@ -1,5 +1,6 @@
 // Public collections and their thoughts. They have no owner: admins edit them,
-// everyone reads them. `default` always exists and feeds the home page.
+// everyone reads them. The one the `home` setting names feeds the home page
+// and cannot be deleted while it does.
 //
 // Deleting keeps a tombstone (`deleted = 1`, fields cleared) so the deletion
 // reaches offline copies on their next sync.
@@ -8,7 +9,6 @@ import { Invalid, nextRev, transaction, type Db } from './db.ts';
 import { parseCsvRecords, CsvError } from '../csv.ts';
 import { checkThought, isId, newId, type ThoughtFields } from '../thought.ts';
 
-export const DEFAULT_SLUG = 'default';
 /** Reserved: the reader's personal collection in the app's URLs. */
 export const MINE_SLUG = 'mine';
 
@@ -35,9 +35,14 @@ export function listCollections(db: Db): (Collection & { count: number })[] {
 			`SELECT c.id, c.slug, c.name, c.description,
 				(SELECT count(*) FROM thought t WHERE t.collection_id = c.id AND t.deleted = 0) AS count
 			FROM collection c WHERE c.deleted = 0
-			ORDER BY c.slug != 'default', c.name COLLATE NOCASE`
+			ORDER BY c.id IS NOT (SELECT home FROM settings), c.name COLLATE NOCASE`
 		)
 		.all() as unknown as (Collection & { count: number })[];
+}
+
+/** The home page shows this collection's thought of the day. */
+export function isHome(db: Db, id: number): boolean {
+	return db.prepare('SELECT 1 FROM settings WHERE home = ?').get(id) !== undefined;
 }
 
 export function findCollection(db: Db, slug: string): Collection | undefined {
@@ -90,12 +95,8 @@ export function updateCollection(
 ): Collection {
 	const value = checkCollection(input);
 	return transaction(db, () => {
-		const current = db
-			.prepare('SELECT slug FROM collection WHERE id = ? AND deleted = 0')
-			.get(id) as { slug: string } | undefined;
-		if (!current) throw new Invalid('That collection no longer exists.');
-		if (current.slug === DEFAULT_SLUG && value.slug !== DEFAULT_SLUG) {
-			throw new Invalid('The default collection keeps its address.', 'slug');
+		if (!db.prepare('SELECT 1 FROM collection WHERE id = ? AND deleted = 0').get(id)) {
+			throw new Invalid('That collection no longer exists.');
 		}
 		if (slugTaken(db, value.slug, id)) throw new Invalid('That address is taken.', 'slug');
 		db.prepare(
@@ -105,15 +106,13 @@ export function updateCollection(
 	});
 }
 
-/** Deletes a collection and its thoughts. The default collection stays. */
+/** Deletes a collection and its thoughts. The home page's collection stays. */
 export function deleteCollection(db: Db, id: number): void {
 	transaction(db, () => {
-		const current = db
-			.prepare('SELECT slug FROM collection WHERE id = ? AND deleted = 0')
-			.get(id) as { slug: string } | undefined;
-		if (!current) return;
-		if (current.slug === DEFAULT_SLUG)
-			throw new Invalid('The default collection cannot be deleted.');
+		if (!db.prepare('SELECT 1 FROM collection WHERE id = ? AND deleted = 0').get(id)) return;
+		if (isHome(db, id)) {
+			throw new Invalid('The home page shows this collection. Choose another in Settings first.');
+		}
 		const rev = nextRev(db);
 		// The tombstone gives up its address so it can be reused.
 		db.prepare(

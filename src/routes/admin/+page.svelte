@@ -7,8 +7,8 @@
 
 <h1>Collections</h1>
 <p class="muted">
-	Collections without an owner, which everyone can read. The default one feeds the home page’s
-	thought of the day.
+	Collections without an owner, which everyone can read. <a href="/admin/settings">Settings</a> chooses
+	which one, if any, feeds the home page’s thought of the day.
 </p>
 
 <table>
@@ -19,7 +19,9 @@
 		{#each data.collections as collection (collection.id)}
 			<tr>
 				<td><a href="/admin/c/{collection.slug}">{collection.name}</a></td>
-				<td class="muted">/c/{collection.slug}</td>
+				<td class="muted"
+					>/c/{collection.slug}{collection.id === data.home ? ' · home page' : ''}</td
+				>
 				<td class="number">{collection.count}</td>
 			</tr>
 		{/each}

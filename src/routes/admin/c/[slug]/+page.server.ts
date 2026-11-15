@@ -6,6 +6,7 @@ import {
 	deleteCollection,
 	findCollection,
 	importCsv,
+	isHome,
 	updateCollection
 } from '#lib/server/collections.ts';
 import { db } from '#lib/server/db.ts';
@@ -29,6 +30,7 @@ export const load: PageServerLoad = ({ locals, params, url }) => {
 	});
 	return {
 		collection,
+		isHome: isHome(db(), collection.id),
 		listing,
 		search,
 		columns: CSV_COLUMNS,

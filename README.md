@@ -25,7 +25,9 @@ The service worker only runs in a production build. To try offline behavior, run
 
 ## Reading
 
-The home page is today's thought from the **default** collection, with its author and source. A thought from a collection carries the collection's name beside the date; your own thoughts carry none. Under the thought, icons keep it, link to it, list the whole collection and, when it has notes, unfold them; in your own thoughts they edit it and show another of yours at random (`?t=<id>`). Below, an arrow and a fixed run of day ticks lead back through the last week (as far as the first tick), and the arrow keys and swipes do the same. Future days stay hidden. The day is the reader's local date. Rotation is `thoughts[dayNumber % count]` in collection order, so every reader sees the same thought on the same day.
+The home page is today's thought from the **home** collection (see `home` under Collections), with its author and source. A thought from a collection carries the collection's name beside the date; your own thoughts carry none. Under the thought, icons keep it, link to it, list the whole collection and, when it has notes, unfold them; in your own thoughts they edit it and show another of yours at random (`?t=<id>`). Below, an arrow and a fixed run of day ticks lead back through the last week (as far as the first tick), and the arrow keys and swipes do the same. Future days stay hidden. The day is the reader's local date. Rotation is `thoughts[dayNumber % count]` in collection order, so every reader sees the same thought on the same day.
+
+On a phone the thought is centered, with even room on both sides.
 
 The page fits the window: a thought too long for it is set smaller (down to 55% of its size) rather than scroll.
 
@@ -42,9 +44,9 @@ A thought is its text plus optional fields:
 
 ## Collections
 
-- **Public collections** have no owner. Admins create and edit them in the dashboard or with the CLI, and everyone reads them. The `default` collection feeds the home page. It cannot be deleted or renamed away from the home page.
+- **Public collections** have no owner. Admins create and edit them in the dashboard or with the CLI, and everyone reads them. The `home` setting picks the one that feeds the home page (`default` at first). It is kept by id, so its address can change, but it cannot be deleted while it is home.
 - **Your thoughts** is one personal collection per reader. Anyone can write thoughts without an account; they stay on the device. **Keep** under a public thought copies it into your thoughts. Signing in uploads the device's thoughts to the account and merges them with what is already there, and every signed-in device then syncs.
-- **Thought of the day off:** turning `daily` off makes the home page show the reader's own thoughts instead of the default collection.
+- **Reader's choice:** setting `home` to `mine` turns the shared thought of the day off. Each reader's home page then shows one of their own thoughts.
 
 ### Locking your thoughts
 
@@ -81,7 +83,7 @@ When a new version is deployed, the worker replaces the old cache, and open tabs
 - **Collections:** create, rename, change the address of, or delete a collection. Deleting removes its thoughts from every device on the next sync.
 - **Thoughts:** search, edit or add thoughts, preview the notes, and move a thought between collections. A moved thought goes last in its new collection's rotation.
 - **Import:** load a collection from CSV. Columns are `text, author, source, notes, lang, theme, color, font`, and only `text` is required. The import adds every row, or none if any row is invalid.
-- **Settings:** `site_name`, `default_theme`, `daily` (thought of the day on the home page) and `allow_sign_up`.
+- **Settings:** `site_name`, `default_theme`, `home` (the collection on the home page, or reader's choice) and `allow_sign_up`.
 
 ## CLI
 
@@ -91,9 +93,9 @@ pnpm qoddy set-password <email>                      # password from stdin; sign
 pnpm qoddy set-role <email> <admin|user>
 pnpm qoddy collections
 pnpm qoddy add-collection <slug> <name>
-pnpm qoddy import <file.csv> [--collection <slug>]   # default collection unless given
+pnpm qoddy import <file.csv> [--collection <slug>]   # home collection unless given
 pnpm qoddy settings
-pnpm qoddy settings set <key> <value>                # site_name, allow_sign_up, default_theme, daily
+pnpm qoddy settings set <key> <value>                # site_name, allow_sign_up, default_theme, home (a slug, or mine)
 ```
 
 The CLI uses the same `DATABASE_PATH` as the server.

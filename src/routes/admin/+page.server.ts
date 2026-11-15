@@ -2,11 +2,12 @@ import { redirect } from '@sveltejs/kit';
 import { attempt, fields, requireAdmin } from '#lib/server/admin.ts';
 import { createCollection, listCollections } from '#lib/server/collections.ts';
 import { db } from '#lib/server/db.ts';
+import { getSettings } from '#lib/server/settings.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = ({ locals }) => {
 	requireAdmin(locals);
-	return { collections: listCollections(db()) };
+	return { collections: listCollections(db()), home: getSettings(db()).home };
 };
 
 export const actions: Actions = {

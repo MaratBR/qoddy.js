@@ -48,8 +48,8 @@ export interface PublicSettings {
 	site_name: string;
 	allow_sign_up: boolean;
 	default_theme: string;
-	/** The home page shows the default collection's thought of the day. */
-	daily: boolean;
+	/** Id of the public collection whose thought of the day is the home page; null shows the reader's own thoughts. */
+	home: number | null;
 }
 
 export interface PublicCollection {
