@@ -60,8 +60,9 @@ export const en = {
 		next: 'Next day',
 		mineIntro:
 			'Write down a thought you want to come back to. Each day brings one of yours back, the way this page shows one from the collection.',
-		keepHint: 'Or keep thoughts you meet: “Keep” under any of them adds it here.',
-		permalink: 'Permalink'
+		keepHint: 'Or keep thoughts you meet: the bookmark under any of them adds it here.',
+		permalink: 'Permalink',
+		random: 'Another of your thoughts'
 	},
 
 	thought: {
@@ -80,7 +81,6 @@ export const en = {
 	},
 
 	collection: {
-		locked: 'locked',
 		count: (n: number) => (n === 1 ? 'one thought' : `all ${n} ${thoughts(n)}`),
 		todays: 'Today’s thought',
 		search: 'Search',

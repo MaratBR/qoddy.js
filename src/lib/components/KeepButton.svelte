@@ -3,6 +3,7 @@
 	import { library, LibraryError } from '#lib/client/library.svelte.ts';
 	import { t } from '#lib/client/i18n.svelte.ts';
 	import type { PublicThought } from '#lib/wire.ts';
+	import Icon from './Icon.svelte';
 
 	let { thought }: { thought: PublicThought } = $props();
 	let error = $state<string | null>(null);
@@ -19,14 +20,23 @@
 </script>
 
 {#if kept}
-	<a class="link kept" href="/t/{kept.id}">{t.thought.kept}</a>
+	<a class="icon kept" href="/t/{kept.id}" aria-label={t.thought.kept} title={t.thought.kept}
+		><Icon name="bookmark" filled /></a
+	>
 {:else}
-	<button class="link" onclick={keep}>{t.thought.keep}</button>
+	<button class="icon" onclick={keep} aria-label={t.thought.keep} title={t.thought.keep}
+		><Icon name="bookmark" /></button
+	>
 {/if}
 {#if error}<span class="error" role="alert">{error}</span>{/if}
 
 <style>
-	.kept {
+	.kept,
+	.kept:hover {
 		color: var(--accent);
+	}
+	.error {
+		align-self: center;
+		margin: 0;
 	}
 </style>

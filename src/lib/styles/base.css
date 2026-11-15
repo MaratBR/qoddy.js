@@ -119,6 +119,31 @@ select {
 	text-decoration: none;
 }
 
+/* A quiet icon control (Icon.svelte inside); its words go in aria-label and title. */
+.icon {
+	appearance: none;
+	background: none;
+	border: 0;
+	padding: 0;
+	width: 2.75rem;
+	height: 2.75rem;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: none;
+	color: var(--muted);
+	cursor: pointer;
+	transition: color 0.15s ease;
+}
+.icon:hover,
+.icon[aria-expanded='true'] {
+	color: var(--ink);
+}
+.icon svg {
+	width: 1.35rem;
+	height: 1.35rem;
+}
+
 /* The one primary action on a screen. */
 .button {
 	appearance: none;

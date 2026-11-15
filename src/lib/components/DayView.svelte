@@ -10,6 +10,7 @@
 	import Thought from './Thought.svelte';
 	import Unlock from './Unlock.svelte';
 	import KeepButton from './KeepButton.svelte';
+	import Icon from './Icon.svelte';
 
 	let { slug }: { slug: string } = $props();
 
@@ -24,12 +25,26 @@
 	});
 	const mine = $derived(slug === 'mine');
 	const collection = $derived(mine ? undefined : library.collection(slug));
-	const own = $derived(mine ? ofTheDay(library.mine, date) : undefined);
+	/** One of yours picked at random (`?t=<id>`), shown instead of the day's. */
+	const picked = $derived(
+		mine ? library.mineById(page.url.searchParams.get('t') ?? '') : undefined
+	);
+	const own = $derived(mine ? (picked ?? ofTheDay(library.mine, date)) : undefined);
 	const shared = $derived(
 		collection ? ofTheDay(library.thoughtsIn(collection.id), date) : undefined
 	);
 	const thought = $derived(own ?? shared);
+	const count = $derived(
+		mine ? library.mine.length : collection ? library.countIn(collection.id) : 0
+	);
 	const base = $derived(page.url.pathname);
+
+	/** Shows another of your thoughts, never the one already on the page. */
+	function shuffle() {
+		const others = library.mine.filter((other) => other.id !== thought?.id);
+		const next = others[Math.floor(Math.random() * others.length)];
+		if (next) void goto(`${base}?t=${next.id}`, { reset: false, replace: true });
+	}
 
 	const href = (day: string) => (day === now ? base : `${base}?d=${day}`);
 	/** The date as the reader's language writes it, with the year only outside this one. */
@@ -101,25 +116,48 @@
 			{/if}
 		</div>
 	{:else}
-		<Thought {thought} {dateline}>
+		<!-- Someone else's collection is named; your own thoughts need no label. -->
+		<Thought {thought} dateline={picked ? undefined : dateline} source={collection?.name}>
 			{#snippet actions()}
 				{#if mine}
-					<a class="link" href="/write?id={thought.id}">{t.common.edit}</a>
+					<a
+						class="icon"
+						href="/write?id={thought.id}"
+						aria-label={t.common.edit}
+						title={t.common.edit}><Icon name="edit" /></a
+					>
+					{#if count > 1}
+						<button class="icon" onclick={shuffle} aria-label={t.day.random} title={t.day.random}
+							><Icon name="shuffle" /></button
+						>
+					{/if}
 				{:else if shared}
 					<KeepButton thought={shared} />
 				{/if}
-				<a class="link" href="/t/{thought.id}">{t.day.permalink}</a>
+				<a class="icon" href="/t/{thought.id}" aria-label={t.day.permalink} title={t.day.permalink}
+					><Icon name="link" /></a
+				>
+				<a
+					class="icon"
+					href="/c/{slug}/all"
+					aria-label={t.collection.count(count)}
+					title={t.collection.count(count)}><Icon name="list" /></a
+				>
 			{/snippet}
 		</Thought>
 	{/if}
 
 	<footer>
 		{#if date > earliest}
-			<a class="link" href={href(addDays(date, -1))} data-sveltekit-reset="false"
-				>{t.day.previous}</a
+			<a
+				class="icon"
+				href={href(addDays(date, -1))}
+				aria-label={t.day.previous}
+				title={t.day.previous}
+				data-sveltekit-reset="false"><Icon name="previous" /></a
 			>
 		{:else}
-			<span class="link" aria-hidden="true"></span>
+			<span class="icon" aria-hidden="true"></span>
 		{/if}
 		<ol class="ticks" aria-label={t.day.days}>
 			{#each ticks as day (day)}
@@ -128,7 +166,7 @@
 						<a
 							href={href(day)}
 							aria-label={label(day)}
-							aria-current={day === date ? 'date' : undefined}
+							aria-current={day === date && !picked ? 'date' : undefined}
 							class:today={day === now}
 							data-sveltekit-reset="false"
 						></a>
@@ -139,18 +177,23 @@
 			{/each}
 		</ol>
 		{#if date < now}
-			<a class="link" href={href(addDays(date, 1))} data-sveltekit-reset="false"
-				>{addDays(date, 1) === now ? t.menu.today : t.day.next}</a
+			{@const next = addDays(date, 1) === now ? t.menu.today : t.day.next}
+			<a
+				class="icon"
+				href={href(addDays(date, 1))}
+				aria-label={next}
+				title={next}
+				data-sveltekit-reset="false"><Icon name="next" /></a
 			>
 		{:else}
-			<span class="link" aria-hidden="true"></span>
+			<span class="icon" aria-hidden="true"></span>
 		{/if}
 	</footer>
 </main>
 
 <style>
 	main {
-		min-height: calc(100dvh - 3.75rem);
+		flex: 1;
 		display: grid;
 		grid-template-rows: 1fr auto;
 		padding: clamp(1.5rem, 6vh, 4rem) clamp(1.25rem, 8vw, 7rem) 0;
@@ -169,19 +212,20 @@
 	footer {
 		display: grid;
 		grid-template-columns: 1fr auto 1fr;
-		align-items: center;
-		gap: 1rem;
+		align-items: end;
+		gap: 0.5rem;
 		padding: 2.5rem 0 max(1rem, env(safe-area-inset-bottom));
+	}
+	/* Arrow glyphs line up with the text edges above them. */
+	footer > .icon {
+		align-items: flex-end;
+	}
+	footer > :first-child {
+		margin-inline-start: -0.7rem;
 	}
 	footer > :last-child {
 		justify-self: end;
-	}
-	footer .link {
-		text-decoration: none;
-		color: var(--muted);
-	}
-	footer .link:hover {
-		color: var(--ink);
+		margin-inline-end: -0.7rem;
 	}
 	.ticks {
 		list-style: none;
@@ -222,14 +266,13 @@
 		height: 1.75rem;
 		background: var(--accent);
 	}
+	/* Narrow screens: the thought gets the room. */
 	@media (max-width: 40rem) {
-		footer {
-			grid-template-columns: 1fr 1fr;
+		main {
+			padding: 1rem 1.25rem 0;
 		}
-		.ticks {
-			grid-row: 1;
-			grid-column: 1 / -1;
-			justify-self: center;
+		footer {
+			padding-top: 1.25rem;
 		}
 	}
 </style>

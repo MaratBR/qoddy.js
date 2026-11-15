@@ -25,7 +25,9 @@ The service worker only runs in a production build. To try offline behavior, run
 
 ## Reading
 
-The home page is today's thought from the **default** collection, with its author and source. When a thought has notes, **About this thought** unfolds them. Below it, **Previous day** and a fixed run of day ticks lead back through the last week (as far as the first tick), and the arrow keys and swipes do the same. Future days stay hidden. The day is the reader's local date. Rotation is `thoughts[dayNumber % count]` in collection order, so every reader sees the same thought on the same day.
+The home page is today's thought from the **default** collection, with its author and source. A thought from a collection carries the collection's name beside the date; your own thoughts carry none. Under the thought, icons keep it, link to it, list the whole collection and, when it has notes, unfold them; in your own thoughts they edit it and show another of yours at random (`?t=<id>`). Below, an arrow and a fixed run of day ticks lead back through the last week (as far as the first tick), and the arrow keys and swipes do the same. Future days stay hidden. The day is the reader's local date. Rotation is `thoughts[dayNumber % count]` in collection order, so every reader sees the same thought on the same day.
+
+The page fits the window: a thought too long for it is set smaller (down to 55% of its size) rather than scroll.
 
 **Menu** lists the collections (each at `/c/<slug>`, plus `/c/<slug>/all`), **Your thoughts**, the theme picker and the account. **Write** opens the editor for a thought of your own.
 

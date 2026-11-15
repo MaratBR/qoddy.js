@@ -182,6 +182,11 @@
 </dialog>
 
 <style>
+	/* The bar, then the page filling the rest of the window (`main { flex: 1 }`). */
+	:global(body) {
+		display: flex;
+		flex-direction: column;
+	}
 	.bar {
 		display: flex;
 		align-items: center;

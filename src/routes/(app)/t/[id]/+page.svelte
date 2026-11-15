@@ -6,6 +6,7 @@
 	import Thought from '#lib/components/Thought.svelte';
 	import KeepButton from '#lib/components/KeepButton.svelte';
 	import Unlock from '#lib/components/Unlock.svelte';
+	import Icon from '#lib/components/Icon.svelte';
 
 	const id = $derived(page.params.id ?? '');
 	const shared = $derived(library.thoughts.get(id));
@@ -33,9 +34,18 @@
 			{#snippet actions()}
 				{#if shared}
 					<KeepButton thought={shared} />
-					{#if canShare}<button class="link" onclick={share}>{t.thought.share}</button>{/if}
+					{#if canShare}
+						<button
+							class="icon"
+							onclick={share}
+							aria-label={t.thought.share}
+							title={t.thought.share}><Icon name="share" /></button
+						>
+					{/if}
 				{:else}
-					<a class="link" href="/write?id={id}">{t.common.edit}</a>
+					<a class="icon" href="/write?id={id}" aria-label={t.common.edit} title={t.common.edit}
+						><Icon name="edit" /></a
+					>
 				{/if}
 			{/snippet}
 		</Thought>
@@ -59,13 +69,21 @@
 
 <style>
 	main {
-		min-height: calc(100dvh - 3.75rem);
+		flex: 1;
 		display: grid;
 		align-content: center;
 		padding: clamp(1.5rem, 6vh, 4rem) clamp(1.25rem, 8vw, 7rem) 3rem;
 	}
 	.from {
-		margin-top: 3rem;
+		margin: 3rem 0 0;
 		color: var(--muted);
+	}
+	@media (max-width: 40rem) {
+		main {
+			padding: 1rem 1.25rem 1.5rem;
+		}
+		.from {
+			margin-top: 1.5rem;
+		}
 	}
 </style>
