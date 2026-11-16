@@ -216,16 +216,8 @@
 		gap: 0.5rem;
 		padding: 2.5rem 0 max(1rem, env(safe-area-inset-bottom));
 	}
-	/* Arrow glyphs line up with the text edges above them. */
-	footer > .icon {
-		align-items: flex-end;
-	}
-	footer > :first-child {
-		margin-inline-start: -0.7rem;
-	}
 	footer > :last-child {
 		justify-self: end;
-		margin-inline-end: -0.7rem;
 	}
 	.ticks {
 		list-style: none;
@@ -247,23 +239,42 @@
 	.ticks a::after,
 	.ticks span::after {
 		content: '';
-		width: 1px;
+		width: 2px;
 		height: 0.8rem;
-		background: var(--muted);
-		transition: height 0.2s ease;
+		border-radius: 1px;
+		background: color-mix(in oklab, var(--muted) 70%, transparent);
+		transition:
+			height 0.35s var(--ease),
+			width 0.35s var(--ease),
+			background-color 0.35s var(--ease);
 	}
 	.ticks span::after {
-		opacity: 0.35;
+		opacity: 0.4;
 	}
 	.ticks a.today::after {
 		height: 1.25rem;
 	}
-	.ticks a:hover::after {
-		height: 1.5rem;
+	@media (hover: hover) {
+		.ticks a:hover::after {
+			height: 1.5rem;
+			background: var(--muted);
+		}
+	}
+	/* Fingers need wider targets than a pointer. */
+	@media (pointer: coarse) {
+		.ticks a,
+		.ticks span {
+			width: 1.5rem;
+		}
+	}
+	.ticks a:focus-visible {
+		outline-offset: -2px;
+		border-radius: 6px;
 	}
 	.ticks a[aria-current='date']::after {
-		width: 3px;
+		width: 4px;
 		height: 1.75rem;
+		border-radius: 2px;
 		background: var(--accent);
 	}
 	/* Narrow screens: the thought gets the room. */

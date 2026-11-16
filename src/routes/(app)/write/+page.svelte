@@ -293,6 +293,7 @@
 		margin-inline-start: -0.3em;
 	}
 	.attribution input {
+		font: inherit;
 		width: auto;
 		min-width: 4ch;
 		max-width: 100%;

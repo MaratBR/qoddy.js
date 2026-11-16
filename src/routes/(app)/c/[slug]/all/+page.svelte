@@ -4,6 +4,7 @@
 	import { library } from '#lib/client/library.svelte.ts';
 	import { t } from '#lib/client/i18n.svelte.ts';
 	import Unlock from '#lib/components/Unlock.svelte';
+	import Icon from '#lib/components/Icon.svelte';
 
 	const slug = $derived(page.params.slug ?? '');
 	const mine = $derived(slug === 'mine');
@@ -52,8 +53,9 @@
 		{/if}
 
 		{#if all.length > 6}
-			<label class="field search">
-				<span>{t.collection.search}</span>
+			<label class="search">
+				<span class="visually-hidden">{t.collection.search}</span>
+				<Icon name="search" />
 				<input type="search" bind:value={search} placeholder={t.collection.searchHint} />
 			</label>
 		{/if}
@@ -90,8 +92,29 @@
 		align-items: center;
 		flex-wrap: wrap;
 	}
+	header a:not(.button) {
+		font-family: var(--ui-font);
+		font-size: 0.9rem;
+	}
+	/* A search field with its glass inside, as the system draws one. */
 	.search {
+		position: relative;
+		display: block;
 		max-width: 24rem;
+		margin-top: 1.75rem;
+	}
+	.search :global(svg) {
+		position: absolute;
+		inset-inline-start: 0.7rem;
+		top: 50%;
+		translate: 0 -50%;
+		width: 1rem;
+		height: 1rem;
+		color: var(--muted);
+		pointer-events: none;
+	}
+	.search input {
+		padding-inline-start: 2.1rem;
 	}
 	.list {
 		list-style: none;
@@ -107,8 +130,14 @@
 		padding: 1rem 0;
 		text-decoration: none;
 	}
+	.list a .text {
+		transition: color 0.2s var(--ease);
+	}
 	.list a:hover .text {
 		color: var(--accent);
+	}
+	.list a:active {
+		opacity: 0.6;
 	}
 	.text {
 		font-family: var(--font);
@@ -121,7 +150,8 @@
 		overflow: hidden;
 	}
 	.by {
+		font-family: var(--ui-font);
 		color: var(--muted);
-		font-size: 0.95rem;
+		font-size: 0.8rem;
 	}
 </style>

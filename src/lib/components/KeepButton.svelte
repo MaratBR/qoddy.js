@@ -31,9 +31,11 @@
 {#if error}<span class="error" role="alert">{error}</span>{/if}
 
 <style>
+	/* Kept: on, as a pressed toggle is. */
 	.kept,
 	.kept:hover {
 		color: var(--accent);
+		background: color-mix(in oklab, var(--accent) 15%, transparent);
 	}
 	.error {
 		align-self: center;

@@ -135,19 +135,20 @@
 	}
 	/* Whose thoughts these are, set apart from the date. */
 	.source {
+		font-family: var(--ui-font);
 		font-style: normal;
-		font-size: 0.8rem;
+		font-size: 0.72rem;
 		font-weight: 600;
-		letter-spacing: 0.03em;
+		letter-spacing: 0.01em;
 		color: var(--ink);
-		border: 1px solid var(--rule);
+		background: color-mix(in oklab, var(--ink) 7%, transparent);
 		border-radius: 999px;
-		padding: 0.15em 0.75em;
+		padding: 0.3em 0.85em;
 	}
 	blockquote {
 		margin: 0;
 		quotes: auto;
-		animation: arrive 0.9s cubic-bezier(0.2, 0.6, 0.2, 1) both;
+		animation: arrive 0.9s var(--ease) both;
 	}
 	blockquote p {
 		margin: 0;
@@ -189,16 +190,14 @@
 	.actions {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.25rem;
-		margin-top: 1rem;
-		/* The first glyph lines up with the text, not its tap target. */
-		margin-inline-start: -0.7rem;
+		gap: 0.5rem;
+		margin-top: 1.25rem;
 	}
 	.notes {
 		margin-top: 1rem;
 		padding-top: 1rem;
 		border-top: 1px solid var(--rule);
-		animation: unfold 0.25s ease-out;
+		animation: unfold 0.35s var(--ease);
 	}
 	@keyframes unfold {
 		from {
@@ -217,7 +216,6 @@
 		}
 		.actions {
 			justify-content: center;
-			margin-inline-start: 0;
 		}
 		/* Centered lines have no edge to hang from: the opening mark sits in the line. */
 		.quoted p::before {

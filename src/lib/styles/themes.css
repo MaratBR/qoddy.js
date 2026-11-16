@@ -12,6 +12,14 @@
 @import '@fontsource-variable/bodoni-moda/opsz-italic.css';
 @import '@fontsource-variable/bricolage-grotesque/opsz.css';
 
+/* Shared by every theme: the chrome speaks in the system's own face (San
+ * Francisco on Apple devices) so the theme's face belongs to the reading. */
+:root {
+	--ui-font:
+		system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+	--ease: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
 /* Morning: fog-green paper, green-black ink, a calligraphic humanist serif. */
 :root,
 :root[data-theme='morning'] {

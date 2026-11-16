@@ -158,6 +158,12 @@
 				</form>
 			{/if}
 		</section>
+
+		<section>
+			<h2>{t.menu.language}</h2>
+			<LanguagePicker />
+			<p class="hint">{t.account.languageSaved}</p>
+		</section>
 	{:else}
 		<h1>{creating ? t.account.createHeading : t.account.signIn}</h1>
 		<p class="lede">
@@ -207,12 +213,6 @@
 			{#if !library.online}<p class="hint">{t.account.signInNeedsConnection}</p>{/if}
 		</form>
 	{/if}
-
-	<section>
-		<h2>{t.menu.language}</h2>
-		<LanguagePicker />
-		{#if library.me}<p class="hint">{t.account.languageSaved}</p>{/if}
-	</section>
 </main>
 
 <style>

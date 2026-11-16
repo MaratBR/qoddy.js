@@ -18,9 +18,13 @@ html {
 	font-kerning: normal;
 	font-variant-ligatures: common-ligatures;
 	text-rendering: optimizeLegibility;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
 	-webkit-text-size-adjust: 100%;
 	-webkit-tap-highlight-color: transparent;
 	hanging-punctuation: first;
+	caret-color: var(--accent);
+	scrollbar-color: color-mix(in oklab, var(--muted) 45%, transparent) transparent;
 	transition: background-color 0.4s ease;
 }
 
@@ -43,10 +47,13 @@ a:hover {
 	text-decoration-color: currentColor;
 }
 
+/* A soft halo in the accent, following each control's own corners. */
 :focus-visible {
-	outline: 2px solid var(--accent);
-	outline-offset: 3px;
-	border-radius: 2px;
+	outline: 3px solid color-mix(in oklab, var(--accent) 55%, transparent);
+	outline-offset: 2px;
+}
+a:focus-visible {
+	border-radius: 3px;
 }
 
 h1,
@@ -60,8 +67,9 @@ h5 {
 	text-wrap: balance;
 }
 h1 {
-	font-size: 2rem;
-	letter-spacing: -0.015em;
+	font-size: 2.25rem;
+	font-weight: 700;
+	letter-spacing: -0.02em;
 }
 h2 {
 	font-size: 1.35rem;
@@ -76,6 +84,9 @@ p {
 }
 .visually-hidden {
 	position: absolute;
+	margin: 0;
+	padding: 0;
+	border: 0;
 	width: 1px;
 	height: 1px;
 	overflow: hidden;
@@ -93,55 +104,105 @@ select {
 	color: inherit;
 }
 
-/* A quiet text control: most actions. */
+/* The chrome: controls, labels and small print speak in the system's face. */
+.link,
+.button,
+.field > span:first-child,
+.label,
+.hint,
+.error,
+.segmented,
+input:not([type='checkbox'], [type='radio'], [type='color']),
+select {
+	font-family: var(--ui-font);
+}
+
+/* A text control for most actions: the accent's words, no underline. Pressed
+   (or pointed at), a soft well in its own color appears round it; the well
+   hangs past the text so the words line up with the text around them. */
 .link {
 	appearance: none;
 	background: none;
 	border: 0;
-	padding: 0.35em 0;
+	border-radius: calc(var(--radius) + 2px);
+	padding: 0.35em 0.65em;
+	margin-inline: -0.65em;
 	min-height: 2.75rem;
 	cursor: pointer;
-	color: var(--ink);
-	text-decoration: underline;
-	text-decoration-color: color-mix(in oklab, currentColor 35%, transparent);
-	text-underline-offset: 0.25em;
-	text-decoration-thickness: 1px;
+	color: var(--accent);
+	font-size: 0.9rem;
+	font-weight: 600;
+	text-decoration: none;
 	display: inline-flex;
 	align-items: center;
 	gap: 0.4em;
+	transition: background-color 0.2s var(--ease);
 }
-.link:hover {
-	text-decoration-color: currentColor;
+@media (hover: hover) {
+	.link:hover:not(:disabled) {
+		background: color-mix(in oklab, currentColor 10%, transparent);
+	}
+}
+.link:active:not(:disabled) {
+	background: color-mix(in oklab, currentColor 16%, transparent);
+	transition-duration: 0s;
 }
 .link:disabled {
 	color: var(--muted);
 	cursor: default;
-	text-decoration: none;
 }
 
-/* A quiet icon control (Icon.svelte inside); its words go in aria-label and title. */
+/* An icon control (Icon.svelte inside); its words go in aria-label and title.
+   A round well shows it can be pressed even where nothing can hover; when it
+   is on (pressed, expanded) the well takes the accent. */
 .icon {
 	appearance: none;
 	background: none;
 	border: 0;
+	border-radius: 50%;
 	padding: 0;
-	width: 2.75rem;
-	height: 2.75rem;
+	width: 2.5rem;
+	height: 2.5rem;
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
 	flex: none;
-	color: var(--muted);
+	color: color-mix(in oklab, var(--ink) 78%, var(--paper));
 	cursor: pointer;
-	transition: color 0.15s ease;
+	transition:
+		color 0.2s var(--ease),
+		background-color 0.2s var(--ease),
+		transform 0.3s var(--ease);
 }
-.icon:hover,
+a.icon,
+button.icon {
+	background: color-mix(in oklab, var(--ink) 6%, transparent);
+}
+@media (hover: hover) {
+	a.icon:hover,
+	button.icon:hover:not(:disabled) {
+		color: var(--ink);
+		background: color-mix(in oklab, var(--ink) 10%, transparent);
+	}
+}
+.icon[aria-pressed='true'],
 .icon[aria-expanded='true'] {
-	color: var(--ink);
+	color: var(--accent);
+	background: color-mix(in oklab, var(--accent) 15%, transparent);
+}
+a.icon:active,
+button.icon:active:not(:disabled) {
+	background: color-mix(in oklab, var(--ink) 14%, transparent);
+	transform: scale(0.9);
+	transition-duration: 0.08s;
+}
+.icon:disabled {
+	opacity: 0.4;
+	cursor: default;
 }
 .icon svg {
-	width: 1.35rem;
-	height: 1.35rem;
+	width: 1.25rem;
+	height: 1.25rem;
 }
 
 /* The one primary action on a screen. */
@@ -152,38 +213,107 @@ select {
 	justify-content: center;
 	gap: 0.5em;
 	min-height: 2.75rem;
-	padding: 0.45em 1.2em;
-	border: 1px solid var(--ink);
-	border-radius: var(--radius);
-	background: var(--ink);
+	padding: 0.5em 1.35em;
+	border: 1px solid transparent;
+	border-radius: calc(var(--radius) + 2px);
+	background-color: var(--ink);
+	/* Lit from above: a sheen and a bright top edge, resting on a soft shadow. */
+	background-image: linear-gradient(
+		to bottom,
+		color-mix(in oklab, #fff 12%, transparent),
+		transparent 70%
+	);
 	color: var(--paper);
+	font-size: 0.9rem;
 	font-weight: 600;
+	letter-spacing: -0.005em;
 	text-decoration: none;
 	cursor: pointer;
+	box-shadow:
+		inset 0 1px 0 color-mix(in oklab, #fff 16%, transparent),
+		0 1px 2px color-mix(in oklab, #000 18%, transparent),
+		0 0.4rem 1rem -0.5rem color-mix(in oklab, #000 35%, transparent);
 	transition:
-		background-color 0.15s ease,
-		color 0.15s ease;
+		background-color 0.2s var(--ease),
+		box-shadow 0.2s var(--ease),
+		color 0.2s var(--ease),
+		transform 0.3s var(--ease);
 }
-.button:hover {
-	background: var(--accent);
-	border-color: var(--accent);
+@media (hover: hover) {
+	.button:hover:not(:disabled) {
+		background-color: color-mix(in oklab, var(--ink) 86%, var(--paper));
+	}
 }
-.button.secondary {
-	background: transparent;
+.button:active:not(:disabled) {
+	transform: scale(0.97);
+	transition-duration: 0.08s;
+}
+.button.secondary,
+.button.danger {
+	background: color-mix(in oklab, var(--ink) 7%, transparent);
 	color: var(--ink);
+	box-shadow: none;
 }
 .button.secondary:hover {
-	color: var(--accent);
-	background: transparent;
+	background: color-mix(in oklab, var(--ink) 12%, transparent);
 }
 .button.danger {
-	background: transparent;
-	color: var(--ink);
-	border-color: color-mix(in oklab, #b3261e 60%, var(--ink));
+	color: light-dark(#a3241c, #f2a093);
+}
+.button.danger:hover {
+	background: color-mix(in oklab, #b3261e 14%, transparent);
 }
 .button:disabled {
-	opacity: 0.55;
+	opacity: 0.45;
 	cursor: default;
+}
+
+/* A segmented control: a recessed track, the chosen segment raised in it.
+   Holds role="radio" buttons, chosen by aria-checked. */
+.segmented {
+	display: inline-flex;
+	flex-wrap: wrap;
+	gap: 2px;
+	padding: 2px;
+	border-radius: calc(var(--radius) + 2px);
+	background: color-mix(in oklab, var(--ink) 8%, transparent);
+}
+.segmented > button {
+	appearance: none;
+	flex: 1 1 auto;
+	border: 0;
+	border-radius: var(--radius);
+	background: none;
+	min-height: 2.25rem;
+	padding: 0.25em 1em;
+	font-size: 0.85rem;
+	font-weight: 500;
+	color: var(--muted);
+	cursor: pointer;
+	transition:
+		background-color 0.25s var(--ease),
+		color 0.25s var(--ease),
+		box-shadow 0.25s var(--ease);
+}
+.segmented > button:hover {
+	color: var(--ink);
+}
+/* Raised: lighter than the track in either mode. */
+.segmented > button[aria-checked='true'] {
+	background: light-dark(
+		color-mix(in oklab, var(--paper) 35%, #fff),
+		color-mix(in oklab, var(--ink) 22%, var(--paper))
+	);
+	color: var(--ink);
+	font-weight: 600;
+	box-shadow:
+		0 1px 2px color-mix(in oklab, #000 14%, transparent),
+		0 2px 6px -2px color-mix(in oklab, #000 12%, transparent);
+}
+@media (pointer: coarse) {
+	.segmented > button {
+		min-height: 2.75rem;
+	}
 }
 
 .field {
@@ -193,39 +323,50 @@ select {
 }
 .field > span:first-child,
 .label {
-	font-size: 0.85rem;
+	font-size: 0.78rem;
 	color: var(--muted);
 	font-weight: 500;
+	letter-spacing: 0.01em;
 }
 .hint {
-	font-size: 0.85rem;
+	font-size: 0.8rem;
+	line-height: 1.45;
 	color: var(--muted);
 	margin: 0;
 }
 .error {
-	font-size: 0.9rem;
+	font-size: 0.85rem;
 	color: light-dark(#a3241c, #f2a093);
 	margin: 0.25rem 0 0;
 }
 
-input:not([type='checkbox'], [type='radio'], [type='color']),
+/* Filled fields with rounded corners; focus rings them in the accent.
+   (Not the visually hidden username fields that password managers read.) */
+input:not([type='checkbox'], [type='radio'], [type='color'], .visually-hidden),
 textarea,
 select {
 	width: 100%;
 	background: var(--wash);
-	border: 0;
-	border-bottom: 1px solid var(--rule);
-	border-radius: var(--radius) var(--radius) 0 0;
-	padding: 0.55em 0.7em;
+	border: 1px solid transparent;
+	border-radius: calc(var(--radius) + 2px);
+	padding: 0.55em 0.8em;
 	min-height: 2.75rem;
+	font-size: 0.95rem;
 	line-height: 1.4;
+	transition:
+		border-color 0.2s var(--ease),
+		box-shadow 0.2s var(--ease);
+}
+input::placeholder,
+textarea::placeholder {
+	color: color-mix(in oklab, var(--muted) 85%, transparent);
 }
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
 	outline: none;
-	border-bottom-color: var(--accent);
-	box-shadow: inset 0 -1px 0 var(--accent);
+	border-color: color-mix(in oklab, var(--accent) 70%, transparent);
+	box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 22%, transparent);
 }
 textarea {
 	resize: vertical;
@@ -304,7 +445,7 @@ input[type='color'] {
 	font-size: 0.9em;
 	background: var(--wash);
 	padding: 0.05em 0.3em;
-	border-radius: 3px;
+	border-radius: 4px;
 }
 .prose hr {
 	border: 0;
@@ -321,12 +462,5 @@ input[type='color'] {
 	*::after {
 		animation-duration: 0.01ms !important;
 		transition-duration: 0.01ms !important;
-	}
-}
-
-@media (pointer: coarse) {
-	.link,
-	.button {
-		min-height: 2.75rem;
 	}
 }

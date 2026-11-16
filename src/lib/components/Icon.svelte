@@ -16,7 +16,9 @@
 		numbers: 'M10 6.5h10M10 12h10M10 17.5h10M4 5.25 5.5 4v5M4 14.25a1.5 1.5 0 1 1 2.5 1.1L4 18.5h3',
 		quote: 'M5 4.5v15M9.5 7h10M9.5 12h10M9.5 17h6',
 		previous: 'M19.5 12h-15M10.5 6l-6 6 6 6',
-		next: 'M4.5 12h15M13.5 6l6 6-6 6'
+		next: 'M4.5 12h15M13.5 6l6 6-6 6',
+		chevron: 'M9.5 5.5 16 12l-6.5 6.5',
+		search: 'M10.5 17.5a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM15.5 15.5l5 5'
 	};
 	export type IconName = keyof typeof paths;
 </script>

@@ -172,14 +172,31 @@
 	.notes-editor:focus-within {
 		border-top-color: var(--accent);
 	}
+	/* The tools in one recessed track, as a segmented control; a style that is
+	   on stands raised in it. */
 	.toolbar {
-		display: flex;
+		display: inline-flex;
 		flex-wrap: wrap;
-		/* The first glyph lines up with the text, not its tap target. */
-		margin-inline-start: -0.7rem;
+		gap: 2px;
+		padding: 3px;
+		border-radius: calc(var(--radius) + 5px);
+		background: color-mix(in oklab, var(--ink) 6%, transparent);
+	}
+	.toolbar .icon {
+		width: 2.25rem;
+		height: 2.25rem;
+		border-radius: calc(var(--radius) + 2px);
+		background: none;
 	}
 	.toolbar .icon[aria-pressed='true'] {
 		color: var(--accent);
+		background: light-dark(
+			color-mix(in oklab, var(--paper) 35%, #fff),
+			color-mix(in oklab, var(--ink) 22%, var(--paper))
+		);
+		box-shadow:
+			0 1px 2px color-mix(in oklab, #000 14%, transparent),
+			0 2px 6px -2px color-mix(in oklab, #000 12%, transparent);
 	}
 	.toolbar .icon :global(svg) {
 		width: 1.15rem;

@@ -7,6 +7,7 @@
 	import { fontHref, look } from '#lib/client/look.svelte.ts';
 	import { i18n, t } from '#lib/client/i18n.svelte.ts';
 	import LanguagePicker from '#lib/components/LanguagePicker.svelte';
+	import Icon from '#lib/components/Icon.svelte';
 	import { findTheme, THEMES } from '#lib/themes.ts';
 	import type { LayoutProps } from './$types';
 
@@ -91,7 +92,7 @@
 
 {#if updated.current}
 	<p class="update">
-		{t.bar.updateReady(library.settings.site_name)}
+		<span>{t.bar.updateReady(library.settings.site_name)}</span>
 		<button class="link" onclick={() => location.reload()}>{t.bar.reload}</button>
 	</p>
 {/if}
@@ -111,21 +112,30 @@
 
 		<section>
 			<h2 class="label">{t.menu.read}</h2>
-			<ul class="places">
+			<ul class="group">
 				{#if library.settings.home !== null}
-					<li><a href="/" aria-current={current('/')}>{t.menu.today}</a></li>
+					<li>
+						<a href="/" aria-current={current('/')}>
+							<span class="title">{t.menu.today}</span>
+							<Icon name="chevron" />
+						</a>
+					</li>
 				{/if}
 				{#each library.collections.filter((c) => !library.isHome(c)) as collection (collection.id)}
 					<li>
-						<a href="/c/{collection.slug}" aria-current={current(`/c/${collection.slug}`)}
-							>{collection.name}</a
-						>
-						<span class="count">{library.countIn(collection.id)}</span>
+						<a href="/c/{collection.slug}" aria-current={current(`/c/${collection.slug}`)}>
+							<span class="title">{collection.name}</span>
+							<span class="count">{library.countIn(collection.id)}</span>
+							<Icon name="chevron" />
+						</a>
 					</li>
 				{/each}
 				<li>
-					<a href="/c/mine" aria-current={current('/c/mine')}>{t.common.yourThoughts}</a>
-					<span class="count">{library.mine.length}</span>
+					<a href="/c/mine" aria-current={current('/c/mine')}>
+						<span class="title">{t.common.yourThoughts}</span>
+						<span class="count">{library.mine.length}</span>
+						<Icon name="chevron" />
+					</a>
 				</li>
 			</ul>
 		</section>
@@ -142,16 +152,15 @@
 						onclick={() => library.setTheme(option.id)}
 					>
 						<span class="sample" style:background={option.light}>Aa</span>
-						{t.themes[option.id] ?? option.name}
+						<span class="swatch-name">{t.themes[option.id] ?? option.name}</span>
 					</button>
 				{/each}
 			</div>
 			{#if readerTheme.dark}
-				<div class="modes" role="radiogroup" aria-label={t.menu.lightOrDark}>
+				<div class="segmented modes" role="radiogroup" aria-label={t.menu.lightOrDark}>
 					{#each [null, 'light', 'dark'] as const as value (value)}
 						<button
 							role="radio"
-							class="link"
 							aria-checked={library.mode === value}
 							onclick={() => library.setMode(value)}>{t.menu.modes[value ?? 'system']}</button
 						>
@@ -170,13 +179,23 @@
 
 		<section>
 			<h2 class="label">{t.menu.account}</h2>
-			<p class="status">{status}</p>
-			<p>
-				<a href="/account">{library.me ? library.me.name : t.menu.signInOrCreate}</a>
-			</p>
-			{#if library.me?.role === 'admin'}
-				<p><a href="/admin" data-sveltekit-reload>{t.menu.dashboard}</a></p>
-			{/if}
+			<ul class="group">
+				<li>
+					<a href="/account" aria-current={current('/account')}>
+						<span class="title">{library.me ? library.me.name : t.menu.signInOrCreate}</span>
+						<Icon name="chevron" />
+					</a>
+				</li>
+				{#if library.me?.role === 'admin'}
+					<li>
+						<a href="/admin" data-sveltekit-reload>
+							<span class="title">{t.menu.dashboard}</span>
+							<Icon name="chevron" />
+						</a>
+					</li>
+				{/if}
+			</ul>
+			<p class="hint status">{status}</p>
 		</section>
 	</div>
 </dialog>
@@ -187,133 +206,285 @@
 		display: flex;
 		flex-direction: column;
 	}
+	/* Stays at the top, transparent: the page itself shows through, so the bar
+	   follows <html>'s color as it fades between themes and tints. A paint of
+	   its own (a --paper mix) would jump there while the page fades. Once the
+	   page scrolls under it, it gains a frosted tint and a hairline. The blur
+	   alone leaves a plain page exactly as it is. */
 	.bar {
+		position: sticky;
+		top: 0;
+		z-index: 1;
 		display: flex;
 		align-items: center;
 		gap: 0.75rem;
 		padding: max(0.5rem, env(safe-area-inset-top)) clamp(1.25rem, 5vw, 3.5rem) 0.25rem;
 		min-height: 3.5rem;
+		background: transparent;
+		-webkit-backdrop-filter: blur(20px);
+		backdrop-filter: blur(20px);
+		border-bottom: 1px solid transparent;
+	}
+	@supports (animation-timeline: scroll()) {
+		.bar {
+			animation: material linear both;
+			animation-timeline: scroll();
+			animation-range: 0 3rem;
+		}
+		@keyframes material {
+			to {
+				background-color: color-mix(in oklab, var(--paper) 72%, transparent);
+				border-bottom-color: color-mix(in oklab, var(--rule) 80%, transparent);
+			}
+		}
 	}
 	.name {
-		font-weight: 600;
+		font-weight: 650;
 		text-decoration: none;
-		letter-spacing: 0.01em;
+		letter-spacing: -0.005em;
 	}
 	.offline {
-		font-style: italic;
+		font-family: var(--ui-font);
+		font-size: 0.72rem;
+		font-weight: 600;
 		color: var(--muted);
-		font-size: 0.9rem;
+		background: color-mix(in oklab, var(--ink) 7%, transparent);
+		border-radius: 999px;
+		padding: 0.2em 0.7em;
 	}
+	/* The bar's two actions as capsules, as a toolbar's buttons are drawn; the
+	   page you are on takes the accent. */
 	nav {
-		margin-left: auto;
+		margin-inline-start: auto;
 		display: flex;
-		gap: 1.5rem;
+		gap: 0.5rem;
 	}
 	nav .link {
-		text-decoration: none;
+		margin: 0;
+		min-height: 2.4rem;
+		padding: 0 1rem;
+		border-radius: 999px;
+		color: var(--ink);
+		font-weight: 550;
+		background: color-mix(in oklab, var(--ink) 6%, transparent);
+	}
+	@media (hover: hover) {
+		nav .link:hover {
+			background: color-mix(in oklab, var(--ink) 10%, transparent);
+		}
+	}
+	nav .link:active {
+		background: color-mix(in oklab, var(--ink) 14%, transparent);
 	}
 	nav .link[aria-current='page'] {
 		color: var(--accent);
+		background: color-mix(in oklab, var(--accent) 14%, transparent);
 	}
 	.update {
-		margin: 0;
-		padding: 0.25rem clamp(1.25rem, 5vw, 3.5rem);
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0 1rem;
+		width: fit-content;
+		max-width: calc(100% - 2.5rem);
+		margin: 0.25rem auto 0;
+		padding: 0.15rem 0.5rem 0.15rem 1.1rem;
+		border-radius: 999px;
+		background: color-mix(in oklab, var(--ink) 7%, transparent);
+		font-family: var(--ui-font);
+		font-size: 0.85rem;
 		color: var(--muted);
-		font-size: 0.95rem;
+	}
+	.update .link {
+		margin: 0;
+		border-radius: 999px;
 	}
 
+	/* The menu: a panel of frosted material floating at the right edge (a
+	   sheet from the bottom on phones), lists grouped as on a settings page. */
 	.sheet {
-		margin: auto 0 0 auto;
-		max-height: 100dvh;
-		height: 100dvh;
-		width: min(24rem, 100vw);
-		max-width: 100vw;
+		--inset: 0.75rem;
+		margin: var(--inset) var(--inset) var(--inset) auto;
+		max-height: calc(100dvh - 2 * var(--inset));
+		height: calc(100dvh - 2 * var(--inset));
+		width: min(23rem, 100vw - 2 * var(--inset));
+		max-width: none;
 		padding: 0;
-		border: 0;
+		border: 1px solid color-mix(in oklab, var(--ink) 9%, transparent);
+		border-radius: calc(var(--radius) + 10px);
 		background: var(--paper);
 		color: var(--ink);
-		box-shadow: var(--lift);
+		box-shadow:
+			0 0.25rem 1rem -0.25rem color-mix(in oklab, #000 18%, transparent),
+			var(--lift);
+		overscroll-behavior: contain;
+	}
+	@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+		.sheet {
+			background: color-mix(in oklab, var(--paper) 82%, transparent);
+			-webkit-backdrop-filter: blur(28px) saturate(1.8);
+			backdrop-filter: blur(28px) saturate(1.8);
+		}
 	}
 	.sheet::backdrop {
-		background: color-mix(in oklab, var(--ink) 25%, transparent);
+		background: color-mix(in oklab, var(--ink) 18%, transparent);
 	}
 	.sheet[open] {
-		animation: slide-in 0.25s cubic-bezier(0.2, 0.7, 0.2, 1);
+		animation: slide-in 0.45s var(--ease);
+	}
+	.sheet[open]::backdrop {
+		animation: fade 0.3s ease-out;
 	}
 	@keyframes slide-in {
 		from {
-			transform: translateX(2rem);
+			transform: translateX(1.5rem);
+			opacity: 0;
+		}
+	}
+	@keyframes fade {
+		from {
 			opacity: 0;
 		}
 	}
 	.sheet-body {
-		padding: max(1rem, env(safe-area-inset-top)) 1.75rem 2rem;
+		padding: 0.5rem 1.25rem 1.75rem;
 	}
 	.close {
 		display: flex;
-		margin-left: auto;
+		margin-inline-start: auto;
+		text-decoration: none;
+		font-weight: 600;
+		color: var(--accent);
 	}
 	section {
-		margin-top: 1.5rem;
+		margin-top: 1.25rem;
+	}
+	section:first-of-type {
+		margin-top: 0;
 	}
 	section h2 {
-		font-size: 0.85rem;
-		margin-bottom: 0.4rem;
+		margin: 0 0 0.4rem;
+		padding-inline-start: 0.9rem;
 	}
-	.places {
+
+	/* An inset group: rows on a raised fill, hairlines between them that
+	   start where the text does. */
+	.group {
 		list-style: none;
 		margin: 0;
 		padding: 0;
+		border-radius: calc(var(--radius) + 4px);
+		background: color-mix(in oklab, var(--ink) 5%, transparent);
+		overflow: hidden;
 	}
-	.places li {
+	.group li + li a::before {
+		content: '';
+		position: absolute;
+		top: 0;
+		inset-inline: 0.9rem 0;
+		border-top: 1px solid color-mix(in oklab, var(--ink) 10%, transparent);
+	}
+	.group a {
+		position: relative;
 		display: flex;
-		align-items: baseline;
-		justify-content: space-between;
-		border-bottom: 1px solid var(--rule);
-	}
-	.places a {
-		display: block;
-		flex: 1;
-		padding: 0.6rem 0;
-		font-size: 1.2rem;
+		align-items: center;
+		gap: 0.5rem;
+		min-height: 2.9rem;
+		padding: 0.5rem 0.75rem 0.5rem 0.9rem;
 		text-decoration: none;
+		font-size: 1.05rem;
+		line-height: 1.3;
+		transition: background-color 0.2s var(--ease);
 	}
-	.places a[aria-current='page'] {
+	.group a:hover {
+		background: color-mix(in oklab, var(--ink) 5%, transparent);
+	}
+	.group a:active {
+		background: color-mix(in oklab, var(--ink) 10%, transparent);
+		transition-duration: 0s;
+	}
+	.group a:focus-visible {
+		outline-offset: -3px;
+		border-radius: inherit;
+	}
+	.title {
+		flex: 1;
+		min-width: 0;
+	}
+	.group a[aria-current='page'] .title {
 		color: var(--accent);
+		font-weight: 600;
 	}
 	.count {
+		font-family: var(--ui-font);
+		font-size: 0.85rem;
 		color: var(--muted);
 		font-variant-numeric: tabular-nums;
 	}
+	.group :global(svg) {
+		width: 0.9rem;
+		height: 0.9rem;
+		flex: none;
+		color: color-mix(in oklab, var(--muted) 70%, transparent);
+	}
+	.group :global(svg:dir(rtl)) {
+		transform: scaleX(-1);
+	}
+
+	/* Themes as previews to pick from, the chosen one ringed. */
 	.themes {
 		display: grid;
 		grid-template-columns: repeat(3, 1fr);
-		gap: 0.6rem;
+		gap: 0.75rem;
 	}
 	.swatch {
 		appearance: none;
 		background: none;
-		border: 1px solid var(--rule);
-		border-radius: var(--radius);
-		padding: 0.5rem;
+		border: 0;
+		padding: 0;
 		display: grid;
-		gap: 0.35rem;
-		justify-items: start;
+		gap: 0.4rem;
+		justify-items: center;
 		cursor: pointer;
-		font-size: 0.9rem;
+		font-family: var(--ui-font);
+		font-size: 0.8rem;
+		color: var(--muted);
 		min-height: 2.75rem;
 	}
-	.swatch[aria-checked='true'] {
-		border-color: var(--ink);
-		box-shadow: inset 0 0 0 1px var(--ink);
+	.swatch:focus-visible {
+		outline: none;
+	}
+	.swatch:focus-visible .sample {
+		outline: 3px solid color-mix(in oklab, var(--accent) 55%, transparent);
+		outline-offset: 2px;
 	}
 	.sample {
-		display: block;
+		display: grid;
+		place-items: center;
 		width: 100%;
-		border-radius: calc(var(--radius) / 2);
-		padding: 0.2rem 0.4rem;
-		font-size: 1.25rem;
-		line-height: 1.3;
+		aspect-ratio: 3 / 2;
+		border-radius: calc(var(--radius) + 2px);
+		font-size: 1.5rem;
+		line-height: 1;
+		box-shadow:
+			inset 0 0 0 1px color-mix(in oklab, #000 10%, transparent),
+			0 1px 3px color-mix(in oklab, #000 12%, transparent);
+		transition:
+			box-shadow 0.25s var(--ease),
+			transform 0.3s var(--ease);
+	}
+	.swatch:active .sample {
+		transform: scale(0.96);
+	}
+	.swatch[aria-checked='true'] {
+		color: var(--ink);
+		font-weight: 600;
+	}
+	.swatch[aria-checked='true'] .sample {
+		box-shadow:
+			inset 0 0 0 1px color-mix(in oklab, #000 10%, transparent),
+			0 0 0 2px var(--paper),
+			0 0 0 4px var(--accent);
 	}
 	[data-swatch='morning'] .sample {
 		font-family: 'Alegreya Variable', serif;
@@ -331,40 +502,36 @@
 	}
 	.modes {
 		display: flex;
-		gap: 1.25rem;
-		margin-top: 0.5rem;
+		margin-top: 1rem;
 	}
-	.modes .link {
-		text-decoration: none;
-		color: var(--muted);
-	}
-	.modes .link[aria-checked='true'] {
-		color: var(--ink);
-		text-decoration: underline;
+	.themes + .hint,
+	.modes + .hint {
+		margin-top: 0.6rem;
+		padding-inline: 0.9rem;
 	}
 	.status {
-		color: var(--muted);
-		font-size: 0.95rem;
+		margin-top: 0.5rem;
+		padding-inline: 0.9rem;
 	}
 
 	@media (max-width: 40rem) {
 		.sheet {
 			width: 100vw;
 			height: auto;
-			max-height: 85dvh;
+			max-height: calc(100dvh - max(2.5rem, env(safe-area-inset-top)));
 			margin: auto 0 0;
-			border-radius: var(--radius) var(--radius) 0 0;
+			border-width: 1px 0 0;
+			border-radius: calc(var(--radius) + 10px) calc(var(--radius) + 10px) 0 0;
 		}
 		.sheet[open] {
 			animation-name: slide-up;
 		}
 		.sheet-body {
-			padding-bottom: max(2rem, env(safe-area-inset-bottom));
+			padding-bottom: max(1.75rem, env(safe-area-inset-bottom));
 		}
 		@keyframes slide-up {
 			from {
-				transform: translateY(2rem);
-				opacity: 0;
+				transform: translateY(100%);
 			}
 		}
 	}
