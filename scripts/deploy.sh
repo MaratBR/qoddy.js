@@ -1,31 +1,26 @@
 #!/usr/bin/env bash
-# Deploys Qoddy to a host over SSH as Docker containers that start with the machine.
+# Deploys Qoddy to a host over SSH as a Docker container that starts with the machine.
 #
-# Usage: scripts/deploy.sh [--build local|remote] [--port 3040]
-#                          [--domain qoddy.example [--email you@example.com]] <[user@]host>
+# Usage: scripts/deploy.sh [--build local|remote] [--port 3040] [--domain qoddy.example] <[user@]host>
 #
 #   --build local    build the image here and send it to the host (docker save | docker load)
 #   --build remote   send this folder as a .tar.gz and build the image on the host
 #                    (asked interactively when not given)
-#   --port           the host port of the app itself (default 3040)
-#   --domain         serve https://<domain> with a Let's Encrypt certificate, issued and
-#                    renewed by Caddy (container qoddy-caddy, on ports 80 and 443). The domain
-#                    must already point at the host. Remembered for later deploys.
-#                    With it the app port is bound to 127.0.0.1 only.
-#   --email          the address Let's Encrypt writes to about expiring certificates
+#   --port           the host port the app listens on (default 3040), plain HTTP
+#   --domain         the public name: sets ORIGIN=https://<domain>. HTTPS and its certificate
+#                    are the upstream proxy's job; point it at <host>:<port>.
+#                    Remembered for later deploys.
 #
 # Nothing is seeded: a new database starts empty apart from the schema. When it has
 # no accounts yet, the script asks for the first admin's email, name and password.
 #
 # On the host everything lives in ~/qoddy-deployment:
 #   qoddy.env   environment for the app container, created on the first deploy.
-#               ORIGIN is set from --domain; set it here yourself behind another proxy.
-#   tls.env     the remembered domain and email
-#   Caddyfile   written from tls.env on every deploy
-#   caddy/      Caddy's state: certificates and keys (caddy/data/caddy/certificates)
+#               ORIGIN is set from --domain; or set it here yourself.
+#   domain.env  the remembered domain
 #   src/        the uploaded source (--build remote only)
 # The database is in the Docker volume `qoddy-data`, kept across deploys.
-# Containers run with --restart unless-stopped, so they come back after a reboot
+# The container runs with --restart unless-stopped, so it comes back after a reboot
 # as long as the Docker service starts at boot.
 set -euo pipefail
 
@@ -35,11 +30,10 @@ DIR=qoddy-deployment # relative to the remote home
 PORT=3040
 BUILD=
 DOMAIN=
-EMAIL=
 HOST=
 
 usage() {
-	sed -n '2,29p' "$0" | sed 's/^# \{0,1\}//'
+	sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'
 	exit "${1:-0}"
 }
 die() {
@@ -52,7 +46,6 @@ while [ $# -gt 0 ]; do
 		--build) BUILD="${2:-}"; shift 2 ;;
 		--port) PORT="${2:-}"; shift 2 ;;
 		--domain) DOMAIN="${2:-}"; shift 2 ;;
-		--email) EMAIL="${2:-}"; shift 2 ;;
 		-h | --help) usage ;;
 		-*) die "unknown option $1" ;;
 		*) [ -z "$HOST" ] || die "only one host"; HOST="$1"; shift ;;
@@ -60,10 +53,7 @@ while [ $# -gt 0 ]; do
 done
 [ -n "$HOST" ] || usage 1
 [[ "$PORT" =~ ^[0-9]+$ ]] && [ "$PORT" -ge 1 ] && [ "$PORT" -le 65535 ] || die "bad port: $PORT"
-# Both go into the Caddyfile, so only plain names and addresses.
 [ -z "$DOMAIN" ] || [[ "$DOMAIN" =~ ^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$ ]] || die "bad domain: $DOMAIN"
-[ -z "$EMAIL" ] || [[ "$EMAIL" =~ ^[^[:space:]{}\"\'@]+@[A-Za-z0-9.-]+$ ]] || die "bad email: $EMAIL"
-[ -z "$EMAIL" ] || [ -n "$DOMAIN" ] || die "--email goes with --domain"
 
 if [ -z "$BUILD" ]; then
 	[ -t 0 ] || die "--build local|remote is required when not run interactively"
@@ -114,68 +104,27 @@ fi
 
 echo "==> Starting $NAME"
 # Quoted, because ssh joins the arguments into one command line and empty ones would vanish.
-"${SSH[@]}" "bash -s -- $(printf '%q ' "$NAME" "$IMAGE" "$DIR" "$PORT" "$DOMAIN" "$EMAIL")" <<'REMOTE'
+"${SSH[@]}" "bash -s -- $(printf '%q ' "$NAME" "$IMAGE" "$DIR" "$PORT" "$DOMAIN")" <<'REMOTE'
 set -eu
-NAME=$1 IMAGE=$2 DIR=$3 PORT=$4 DOMAIN=$5 EMAIL=$6
+NAME=$1 IMAGE=$2 DIR=$3 PORT=$4 DOMAIN=$5
 D=$HOME/$DIR
-CADDY=$NAME-caddy
 
 if [ -n "$DOMAIN" ]; then
-	printf 'DOMAIN=%s\nEMAIL=%s\n' "$DOMAIN" "$EMAIL" >"$D/tls.env"
-elif [ -f "$D/tls.env" ]; then
-	. "$D/tls.env"
+	printf 'DOMAIN=%s\n' "$DOMAIN" >"$D/domain.env"
+elif [ -f "$D/domain.env" ]; then
+	. "$D/domain.env"
 fi
+if [ -n "$DOMAIN" ]; then set -- -e "ORIGIN=https://$DOMAIN"; else set --; fi
 
-docker network inspect "$NAME" >/dev/null 2>&1 || docker network create "$NAME" >/dev/null
-
-# With TLS, the app is reached through Caddy; its own port stays on the host.
-if [ -n "$DOMAIN" ]; then
-	PUBLISH="127.0.0.1:$PORT:3000"
-	set -- -e "ORIGIN=https://$DOMAIN"
-else
-	PUBLISH="$PORT:3000"
-	set --
-fi
 docker rm -f "$NAME" >/dev/null 2>&1 || true
-docker run -d --name "$NAME" --restart unless-stopped --network "$NAME" \
-	-p "$PUBLISH" -v qoddy-data:/data --env-file "$D/qoddy.env" "$@" \
+docker run -d --name "$NAME" --restart unless-stopped \
+	-p "$PORT:3000" -v qoddy-data:/data --env-file "$D/qoddy.env" "$@" \
 	"$IMAGE" >/dev/null
 sleep 3
 if [ "$(docker inspect -f '{{.State.Running}}' "$NAME")" != true ]; then
 	echo "The app container did not stay up. Its log:" >&2
 	docker logs --tail 50 "$NAME" >&2
 	exit 1
-fi
-
-if [ -n "$DOMAIN" ]; then
-	echo "==> Starting $CADDY for https://$DOMAIN"
-	{
-		[ -z "$EMAIL" ] || printf '{\n\temail %s\n}\n\n' "$EMAIL"
-		printf '%s {\n\treverse_proxy %s:3000\n}\n' "$DOMAIN" "$NAME"
-	} >"$D/Caddyfile"
-	mkdir -p "$D/caddy/data" "$D/caddy/config"
-	docker pull -q caddy:2 >/dev/null || docker image inspect caddy:2 >/dev/null
-	docker rm -f "$CADDY" >/dev/null 2>&1 || true
-	# Runs as the deploying user, so the certificates in ~/$DIR/caddy stay theirs.
-	docker run -d --name "$CADDY" --restart unless-stopped --network "$NAME" \
-		--user "$(id -u):$(id -g)" -p 80:80 -p 443:443 -p 443:443/udp \
-		-v "$D/Caddyfile:/etc/caddy/Caddyfile:ro" -v "$D/caddy/data:/data" -v "$D/caddy/config:/config" \
-		caddy:2 >/dev/null
-	echo "    waiting for the certificate"
-	cert=
-	for _ in $(seq 1 45); do
-		cert=$(find "$D/caddy/data/caddy/certificates" -name "$DOMAIN.crt" 2>/dev/null | head -n 1)
-		[ -n "$cert" ] && break
-		[ "$(docker inspect -f '{{.State.Running}}' "$CADDY")" = true ] || break
-		sleep 2
-	done
-	if [ -n "$cert" ]; then
-		echo "    certificate: ~/$DIR/${cert#"$D/"}"
-	else
-		echo "Warning: no certificate for $DOMAIN yet. Check that the domain points at this host" >&2
-		echo "         and ports 80 and 443 are open. Caddy keeps trying; its recent log:" >&2
-		docker logs --tail 15 "$CADDY" >&2
-	fi
 fi
 
 if command -v systemctl >/dev/null 2>&1 && ! systemctl is-enabled docker >/dev/null 2>&1; then

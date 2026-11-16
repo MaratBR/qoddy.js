@@ -148,12 +148,12 @@ DATABASE_PATH=/var/lib/qoddy/qoddy.db ORIGIN=https://qoddy.example pnpm start
 Or with Docker on a host you reach over SSH:
 
 ```sh
-scripts/deploy.sh --build local --domain qoddy.example --email you@example.com user@host
+scripts/deploy.sh --build local --domain qoddy.example user@host
 scripts/deploy.sh --build remote user@host     # send the source and build there; the domain is remembered
 ```
 
-- **Containers:** `qoddy` (the app, on `--port`, default 3040) and, with `--domain`, `qoddy-caddy`. Caddy takes ports 80 and 443 and gets and renews a Let's Encrypt certificate. The domain must already point at the host. Both run with `--restart unless-stopped`, and each deploy replaces them.
-- **On the host:** the database is in the `qoddy-data` volume. `~/qoddy-deployment` holds `qoddy.env` (extra environment), `tls.env` (the remembered domain) and `caddy/` (the certificates and keys).
+- **Container:** `qoddy`, plain HTTP on `--port` (default 3040), with `--restart unless-stopped`; each deploy replaces it. HTTPS is terminated upstream: point your proxy at `host:3040`. `--domain` sets `ORIGIN=https://<domain>`.
+- **On the host:** the database is in the `qoddy-data` volume. `~/qoddy-deployment` holds `qoddy.env` (extra environment) and `domain.env` (the remembered domain).
 - **First admin:** when the database has no accounts, the script asks for the admin's email and password.
 
 - **What to deploy:** `build/`, `package.json` and production `node_modules` (`pnpm install --prod`).
