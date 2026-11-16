@@ -10,6 +10,15 @@
 import { newId } from '../thought.ts';
 import type { Lock } from '../wire.ts';
 
+/** How this device's app lock opens: what is stored, never the key. */
+export interface AppLock {
+	kind: 'pin' | 'password';
+	salt: string;
+	iterations: number;
+	/** The data key, encrypted with the passcode's key (`iv.data`). */
+	key: string;
+}
+
 const ITERATIONS = 600_000;
 const CHECK = 'qoddy-lock-check';
 const utf8 = new TextEncoder();
@@ -36,9 +45,19 @@ async function deriveKey(password: string, salt: string, iterations: number): Pr
 		{ name: 'PBKDF2', hash: 'SHA-256', salt: fromBase64(salt), iterations },
 		material,
 		{ name: 'AES-GCM', length: 256 },
-		false,
+		true,
 		['encrypt', 'decrypt']
 	);
+}
+
+/** A key's raw bytes (base64), or null for a key that cannot be exported (stored by an older version). */
+export async function exportKey(key: CryptoKey): Promise<string | null> {
+	if (!key.extractable) return null;
+	return toBase64(new Uint8Array(await crypto.subtle.exportKey('raw', key)));
+}
+
+export function importKey(raw: string): Promise<CryptoKey> {
+	return crypto.subtle.importKey('raw', fromBase64(raw), 'AES-GCM', true, ['encrypt', 'decrypt']);
 }
 
 async function seal(key: CryptoKey, context: string, text: string) {
@@ -80,13 +99,50 @@ export async function openLock(lock: Lock, password: string): Promise<CryptoKey 
 	return check === CHECK ? key : null;
 }
 
-/** Encrypts an item's JSON as `iv.data` (base64). */
-export async function encryptItem(key: CryptoKey, id: string, json: string): Promise<string> {
-	const { iv, data } = await seal(key, `item:${id}`, json);
+/** Encrypts text as `iv.data` (base64), bound to `context`: it decrypts under that context only. */
+export async function encryptText(key: CryptoKey, context: string, text: string): Promise<string> {
+	const { iv, data } = await seal(key, context, text);
 	return `${iv}.${data}`;
 }
 
-export async function decryptItem(key: CryptoKey, id: string, envelope: string) {
+/** The text, or null if the key or the context is wrong or the envelope is damaged. */
+export async function decryptText(key: CryptoKey, context: string, envelope: string) {
 	const [iv, data] = envelope.split('.');
-	return iv && data ? unseal(key, `item:${id}`, iv, data) : null;
+	return iv && data ? unseal(key, context, iv, data) : null;
+}
+
+/** Encrypts an item's JSON as `iv.data` (base64). */
+export function encryptItem(key: CryptoKey, id: string, json: string): Promise<string> {
+	return encryptText(key, `item:${id}`, json);
+}
+
+export function decryptItem(key: CryptoKey, id: string, envelope: string) {
+	return decryptText(key, `item:${id}`, envelope);
+}
+
+/** Locks this device's data with a passcode or password: keeps `dataKey`, or makes one. */
+export async function createAppLock(
+	kind: AppLock['kind'],
+	secret: string,
+	dataKey?: CryptoKey
+): Promise<{ lock: AppLock; key: CryptoKey }> {
+	const key =
+		dataKey ??
+		(await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, [
+			'encrypt',
+			'decrypt'
+		]));
+	const raw = await exportKey(key);
+	if (raw === null) throw new Error('The data key cannot be exported.');
+	const salt = toBase64(crypto.getRandomValues(new Uint8Array(16)));
+	const wrapping = await deriveKey(secret, salt, ITERATIONS);
+	const wrapped = await encryptText(wrapping, 'app-lock', raw);
+	return { lock: { kind, salt, iterations: ITERATIONS, key: wrapped }, key };
+}
+
+/** The data key if `secret` is right, else null. */
+export async function openAppLock(lock: AppLock, secret: string): Promise<CryptoKey | null> {
+	const wrapping = await deriveKey(secret, lock.salt, lock.iterations);
+	const raw = await decryptText(wrapping, 'app-lock', lock.key);
+	return raw === null ? null : importKey(raw);
 }
