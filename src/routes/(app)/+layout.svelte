@@ -4,26 +4,31 @@
 	import { afterNavigate } from '$app/navigation';
 	import { library } from '#lib/client/library.svelte.ts';
 	import { makeAvailableOffline } from '#lib/client/offline.ts';
-	import { fontHref, look } from '#lib/client/look.svelte.ts';
+	import { fontHref, look, resolveColor, toHex } from '#lib/client/look.svelte.ts';
 	import { i18n, t } from '#lib/client/i18n.svelte.ts';
-	import LanguagePicker from '#lib/components/LanguagePicker.svelte';
 	import Icon from '#lib/components/Icon.svelte';
+	import AppLock from '#lib/components/AppLock.svelte';
+	import ThemePicker from '#lib/components/ThemePicker.svelte';
 	import { findTheme, THEMES } from '#lib/themes.ts';
 	import type { LayoutProps } from './$types';
 
 	let { children }: LayoutProps = $props();
 	let menu: HTMLDialogElement | undefined = $state();
-	/** The collection the site puts on the home page, which a reader may swap for their own thoughts. */
-	const siteHome = $derived(library.collections.find((c) => c.id === library.settings.home));
 	/** The bar's height, as `--bar`: a page's first screen is the window below it. */
 	let barHeight = $state(0);
 	$effect(() => {
 		document.documentElement.style.setProperty('--bar', `${barHeight}px`);
 	});
 
+	/** Bumped when the system turns light or dark, to recolor the browser's bar. */
+	let scheme = $state(0);
 	onMount(() => {
 		void library.init();
 		makeAvailableOffline();
+		const query = matchMedia('(prefers-color-scheme: dark)');
+		const changed = () => scheme++;
+		query.addEventListener('change', changed);
+		return () => query.removeEventListener('change', changed);
 	});
 
 	// Close the menu on navigation; check for a new service worker meanwhile.
@@ -33,13 +38,12 @@
 	});
 
 	const theme = $derived(findTheme(look.theme) ?? findTheme(library.theme) ?? THEMES[0]);
-	const readerTheme = $derived(findTheme(library.theme) ?? THEMES[0]);
 
 	$effect(() => {
 		const root = document.documentElement;
 		root.lang = i18n.locale;
 		root.dataset.theme = theme.id;
-		if (library.mode && theme.dark) root.dataset.mode = library.mode;
+		if (library.mode) root.dataset.mode = library.mode;
 		else delete root.dataset.mode;
 		if (look.color) {
 			root.dataset.tinted = '';
@@ -50,6 +54,23 @@
 		}
 		if (look.font) root.style.setProperty('--thought-font', `'${look.font}', var(--font)`);
 		else root.style.removeProperty('--thought-font');
+		for (const [name, value] of [
+			['accent', library.accent],
+			['tone', library.tone]
+		] as const) {
+			if (value) {
+				root.dataset[name] = '';
+				root.style.setProperty(`--reader-${name}`, value);
+			} else {
+				delete root.dataset[name];
+				root.style.removeProperty(`--reader-${name}`);
+			}
+		}
+		// The browser's bar takes the page's paper. One meta, changed in place:
+		// iOS reads the first theme-color meta and ignores ones added later.
+		void scheme;
+		const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+		if (meta) meta.content = toHex(resolveColor('--paper'));
 	});
 
 	// Theme changes fade (base.css), but only once the first frames are drawn
@@ -59,12 +80,6 @@
 		requestAnimationFrame(() =>
 			requestAnimationFrame(() => (document.documentElement.dataset.settled = ''))
 		);
-	});
-
-	const chrome = $derived.by(() => {
-		if (!theme.dark || library.mode === 'light') return theme.light;
-		if (library.mode === 'dark') return theme.dark;
-		return null;
 	});
 
 	const status = $derived.by(() => {
@@ -80,16 +95,20 @@
 	});
 
 	const current = (href: string) => (page.url.pathname === href ? 'page' : undefined);
+
+	/** The menu's reading list: today, collections with something in them, your own. */
+	const shelf = $derived([
+		...(library.homeId !== null ? [{ href: '/', title: t.menu.today, count: null }] : []),
+		// Empty collections stay out of the way until they have something to read.
+		...library.collections
+			.filter((c) => !library.isHome(c) && library.countIn(c.id) > 0)
+			.map((c) => ({ href: `/c/${c.slug}`, title: c.name, count: library.countIn(c.id) })),
+		{ href: '/c/mine', title: t.common.yourThoughts, count: library.mine.length }
+	]);
 </script>
 
 <svelte:head>
 	<title>{library.settings.site_name}</title>
-	{#if chrome}
-		<meta name="theme-color" content={chrome} />
-	{:else}
-		<meta name="theme-color" content={theme.light} media="(prefers-color-scheme: light)" />
-		<meta name="theme-color" content={theme.dark} media="(prefers-color-scheme: dark)" />
-	{/if}
 	{#if look.font}
 		<link rel="stylesheet" href={fontHref(look.font)} />
 	{/if}
@@ -98,12 +117,14 @@
 <header class="bar" bind:offsetHeight={barHeight}>
 	<a class="name" href="/">{library.settings.site_name}</a>
 	{#if !library.online}<span class="offline">{t.bar.offline}</span>{/if}
-	<nav>
-		<a class="link" href="/write" aria-current={current('/write')}>{t.bar.write}</a>
-		<button class="link" onclick={() => menu?.showModal()} aria-haspopup="dialog"
-			>{t.bar.menu}</button
-		>
-	</nav>
+	{#if !library.appLocked}
+		<nav>
+			<a class="link" href="/write" aria-current={current('/write')}>{t.bar.write}</a>
+			<button class="link" onclick={() => menu?.showModal()} aria-haspopup="dialog"
+				>{t.bar.menu}</button
+			>
+		</nav>
+	{/if}
 </header>
 
 {#if updated.current}
@@ -115,120 +136,72 @@
 
 {#if library.ready}
 	{@render children()}
+{:else if library.appLocked}
+	<AppLock />
 {/if}
 
-<dialog
-	bind:this={menu}
-	class="sheet"
-	aria-label={t.bar.menu}
-	onclick={(event) => event.target === menu && menu.close()}
->
-	<div class="sheet-body">
+<dialog bind:this={menu} class="menu" aria-label={t.bar.menu}>
+	<div class="menu-top">
+		<span class="name">{library.settings.site_name}</span>
 		<button class="link close" onclick={() => menu?.close()}>{t.menu.close}</button>
+	</div>
 
-		<section>
+	<div class="menu-body">
+		<!-- What to read, large, in the reading face: the menu's reason to exist. -->
+		<section class="reading">
 			<h2 class="label">{t.menu.read}</h2>
-			<ul class="group">
-				{#if library.homeId !== null}
-					<li>
-						<a href="/" aria-current={current('/')}>
-							<span class="title">{t.menu.today}</span>
-							<Icon name="chevron" />
-						</a>
-					</li>
-				{/if}
-				{#each library.collections.filter((c) => !library.isHome(c)) as collection (collection.id)}
-					<li>
-						<a href="/c/{collection.slug}" aria-current={current(`/c/${collection.slug}`)}>
-							<span class="title">{collection.name}</span>
-							<span class="count">{library.countIn(collection.id)}</span>
-							<Icon name="chevron" />
+			<ul class="shelf">
+				{#each shelf as entry, i (entry.href)}
+					<li style:--i={i}>
+						<a href={entry.href} aria-current={current(entry.href)}>
+							<span class="title">{entry.title}</span>
+							{#if entry.count !== null}<span class="count">{entry.count}</span>{/if}
+							<Icon name="next" />
 						</a>
 					</li>
 				{/each}
-				<li>
-					<a href="/c/mine" aria-current={current('/c/mine')}>
-						<span class="title">{t.common.yourThoughts}</span>
-						<span class="count">{library.mine.length}</span>
-						<Icon name="chevron" />
-					</a>
-				</li>
 			</ul>
 		</section>
 
-		{#if siteHome}
+		<div class="side">
 			<section>
-				<h2 class="label">{t.menu.home}</h2>
-				<div class="segmented home" role="radiogroup" aria-label={t.menu.home}>
-					{#each [false, true] as value (value)}
-						<button
-							role="radio"
-							aria-checked={library.homeMine === value}
-							onclick={() => library.setHomeMine(value)}
-							>{value ? t.common.yourThoughts : siteHome.name}</button
-						>
-					{/each}
-				</div>
+				<h2 class="label">{t.menu.theme}</h2>
+				<ThemePicker />
 			</section>
-		{/if}
 
-		<section>
-			<h2 class="label">{t.menu.theme}</h2>
-			<div class="themes" role="radiogroup" aria-label={t.menu.theme}>
-				{#each THEMES as option (option.id)}
-					<button
-						role="radio"
-						aria-checked={readerTheme.id === option.id}
-						class="swatch"
-						data-swatch={option.id}
-						onclick={() => library.setTheme(option.id)}
-					>
-						<span class="sample" style:background={option.light}>Aa</span>
-						<span class="swatch-name">{t.themes[option.id] ?? option.name}</span>
-					</button>
-				{/each}
-			</div>
-			{#if readerTheme.dark}
-				<div class="segmented modes" role="radiogroup" aria-label={t.menu.lightOrDark}>
-					{#each [null, 'light', 'dark'] as const as value (value)}
-						<button
-							role="radio"
-							aria-checked={library.mode === value}
-							onclick={() => library.setMode(value)}>{t.menu.modes[value ?? 'system']}</button
-						>
-					{/each}
-				</div>
-			{/if}
-			{#if look.theme && look.theme !== readerTheme.id}
-				<p class="hint">{t.menu.ownTheme}</p>
-			{/if}
-		</section>
-
-		<section>
-			<h2 class="label">{t.menu.language}</h2>
-			<LanguagePicker />
-		</section>
-
-		<section>
-			<h2 class="label">{t.menu.account}</h2>
-			<ul class="group">
-				<li>
-					<a href="/account" aria-current={current('/account')}>
-						<span class="title">{library.me ? library.me.name : t.menu.signInOrCreate}</span>
-						<Icon name="chevron" />
-					</a>
-				</li>
-				{#if library.me?.role === 'admin'}
+			<section>
+				<h2 class="label">{t.menu.account}</h2>
+				<ul class="group">
 					<li>
-						<a href="/admin" data-sveltekit-reload>
-							<span class="title">{t.menu.dashboard}</span>
+						<a href="/account" aria-current={current('/account')}>
+							<span class="title"
+								>{library.me
+									? library.me.name
+									: library.settings.allow_sign_up
+										? t.menu.signInOrCreate
+										: t.menu.signIn}</span
+							>
 							<Icon name="chevron" />
 						</a>
 					</li>
-				{/if}
-			</ul>
-			<p class="hint status">{status}</p>
-		</section>
+					<li>
+						<a href="/account/appearance" aria-current={current('/account/appearance')}>
+							<span class="title">{t.account.appearance}</span>
+							<Icon name="chevron" />
+						</a>
+					</li>
+					{#if library.me?.role === 'admin'}
+						<li>
+							<a href="/admin" data-sveltekit-reload>
+								<span class="title">{t.menu.dashboard}</span>
+								<Icon name="chevron" />
+							</a>
+						</li>
+					{/if}
+				</ul>
+				<p class="hint status">{status}</p>
+			</section>
+		</div>
 	</div>
 </dialog>
 
@@ -332,242 +305,194 @@
 		border-radius: 999px;
 	}
 
-	/* The menu: a panel of frosted material floating at the right edge (a
-	   sheet from the bottom on phones), lists grouped as on a settings page. */
-	.sheet {
-		--inset: 0.75rem;
-		margin: var(--inset) var(--inset) var(--inset) auto;
-		max-height: calc(100dvh - 2 * var(--inset));
-		height: calc(100dvh - 2 * var(--inset));
-		width: min(23rem, 100vw - 2 * var(--inset));
+	/* The menu: a page of its own over everything, opening from the button that
+	   called it. What to read comes first and large, in the reading face; the
+	   look and the account sit beside it (below on phones). */
+	.menu {
+		width: 100%;
+		height: 100%;
 		max-width: none;
-		padding: 0;
-		border: 1px solid color-mix(in oklab, var(--ink) 9%, transparent);
-		border-radius: calc(var(--radius) + 10px);
-		background: var(--paper);
+		max-height: none;
+		margin: 0;
+		padding: 0 clamp(1.25rem, 5vw, 3.5rem) max(2rem, env(safe-area-inset-bottom));
+		border: 0;
 		color: var(--ink);
-		box-shadow:
-			0 0.25rem 1rem -0.25rem color-mix(in oklab, #000 18%, transparent),
-			var(--lift);
+		background:
+			radial-gradient(
+				ellipse 70% 55% at 100% 0%,
+				color-mix(in oklab, var(--accent) 16%, transparent),
+				transparent
+			),
+			radial-gradient(
+				ellipse 60% 50% at 0% 100%,
+				color-mix(in oklab, var(--accent) 8%, transparent),
+				transparent
+			),
+			var(--paper);
+		overflow-y: auto;
 		overscroll-behavior: contain;
 	}
-	@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
-		.sheet {
-			background: color-mix(in oklab, var(--paper) 82%, transparent);
-			-webkit-backdrop-filter: blur(28px) saturate(1.8);
-			backdrop-filter: blur(28px) saturate(1.8);
-		}
+	.menu::backdrop {
+		background: transparent;
 	}
-	.sheet::backdrop {
-		background: color-mix(in oklab, var(--ink) 18%, transparent);
+	.menu[open] {
+		animation: open-menu 0.6s var(--ease);
 	}
-	.sheet[open] {
-		animation: slide-in 0.45s var(--ease);
-	}
-	.sheet[open]::backdrop {
-		animation: fade 0.3s ease-out;
-	}
-	@keyframes slide-in {
+	@keyframes open-menu {
 		from {
-			transform: translateX(1.5rem);
-			opacity: 0;
+			clip-path: circle(1.5rem at calc(100% - 3.5rem) 1.75rem);
+		}
+		to {
+			clip-path: circle(150% at calc(100% - 3.5rem) 1.75rem);
 		}
 	}
-	@keyframes fade {
-		from {
-			opacity: 0;
-		}
-	}
-	.sheet-body {
-		padding: 0.5rem 1.25rem 1.75rem;
+	/* The bar again, the close where the menu button was. */
+	.menu-top {
+		position: sticky;
+		top: 0;
+		z-index: 1;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		min-height: 3.5rem;
+		padding-top: max(0.5rem, env(safe-area-inset-top));
+		padding-bottom: 0.25rem;
 	}
 	.close {
+		margin: 0;
+		min-height: 2.4rem;
+		padding: 0 1rem;
+		border-radius: 999px;
+		color: var(--ink);
+		font-weight: 550;
+		background: color-mix(in oklab, var(--ink) 6%, transparent);
+	}
+	.menu-body {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr);
+		gap: 2.5rem;
+		max-width: 72rem;
+		margin: clamp(1.5rem, 6vh, 4rem) auto 0;
+	}
+	@media (min-width: 56rem) {
+		.menu-body {
+			grid-template-columns: minmax(0, 1.5fr) minmax(18rem, 1fr);
+			gap: clamp(2.5rem, 6vw, 6rem);
+			align-items: start;
+		}
+	}
+	.reading h2 {
+		margin: 0 0 0.75rem;
+		padding: 0;
+	}
+	.shelf {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+	.shelf li {
+		border-top: 1px solid color-mix(in oklab, var(--ink) 10%, transparent);
+		animation: rise 0.6s var(--ease) both;
+		animation-delay: calc(0.08s + var(--i) * 0.045s);
+	}
+	.shelf li:last-child {
+		border-bottom: 1px solid color-mix(in oklab, var(--ink) 10%, transparent);
+	}
+	@keyframes rise {
+		from {
+			opacity: 0;
+			transform: translateY(0.75rem);
+		}
+	}
+	.shelf a {
 		display: flex;
-		margin-inline-start: auto;
+		align-items: baseline;
+		gap: 0.6rem;
+		padding: 0.45em 0;
+		color: inherit;
 		text-decoration: none;
-		font-weight: 600;
+		font-family: var(--font);
+		font-weight: var(--thought-weight);
+		font-style: var(--thought-style);
+		letter-spacing: var(--thought-tracking);
+		font-size: clamp(1.9rem, 6.5vw, 3.4rem);
+		line-height: 1.08;
+		transition: color 0.25s var(--ease);
+	}
+	.shelf .title {
+		min-width: 0;
+		overflow-wrap: anywhere;
+		transition: translate 0.35s var(--ease);
+	}
+	/* The count rides beside the name, small, like a footnote mark. */
+	.shelf .count {
+		align-self: flex-start;
+		margin-top: 0.35em;
+		font-family: var(--ui-font);
+		font-style: normal;
+		font-size: 0.8rem;
+		font-weight: 500;
+		letter-spacing: 0;
+		color: var(--muted);
+		font-variant-numeric: tabular-nums;
+	}
+	.shelf :global(svg) {
+		align-self: center;
+		flex: none;
+		width: 1.5rem;
+		height: 1.5rem;
+		margin-inline-start: auto;
+		opacity: 0;
+		translate: -0.75rem 0;
+		color: var(--accent);
+		transition:
+			opacity 0.25s var(--ease),
+			translate 0.35s var(--ease);
+	}
+	.shelf :global(svg:dir(rtl)) {
+		transform: scaleX(-1);
+	}
+	@media (hover: hover) {
+		.shelf a:hover .title {
+			translate: 0.4rem 0;
+		}
+		.shelf a:hover :global(svg) {
+			opacity: 1;
+			translate: 0 0;
+		}
+	}
+	.shelf a:active {
 		color: var(--accent);
 	}
-	section {
-		margin-top: 1.25rem;
+	.shelf a[aria-current='page'] {
+		color: var(--accent);
 	}
-	section:first-of-type {
-		margin-top: 0;
+	.shelf a[aria-current='page'] :global(svg) {
+		opacity: 1;
+		translate: 0 0;
+	}
+	.side {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr);
+		gap: 1.75rem;
+		animation: rise 0.6s var(--ease) 0.2s both;
 	}
 	section h2 {
 		margin: 0 0 0.4rem;
 		padding-inline-start: 0.9rem;
 	}
 
-	/* An inset group: rows on a raised fill, hairlines between them that
-	   start where the text does. */
-	.group {
-		list-style: none;
-		margin: 0;
-		padding: 0;
-		border-radius: calc(var(--radius) + 4px);
-		background: color-mix(in oklab, var(--ink) 5%, transparent);
-		overflow: hidden;
-	}
-	.group li + li a::before {
-		content: '';
-		position: absolute;
-		top: 0;
-		inset-inline: 0.9rem 0;
-		border-top: 1px solid color-mix(in oklab, var(--ink) 10%, transparent);
-	}
-	.group a {
-		position: relative;
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		min-height: 2.9rem;
-		padding: 0.5rem 0.75rem 0.5rem 0.9rem;
-		text-decoration: none;
-		font-size: 1.05rem;
-		line-height: 1.3;
-		transition: background-color 0.2s var(--ease);
-	}
-	.group a:hover {
-		background: color-mix(in oklab, var(--ink) 5%, transparent);
-	}
-	.group a:active {
-		background: color-mix(in oklab, var(--ink) 10%, transparent);
-		transition-duration: 0s;
-	}
-	.group a:focus-visible {
-		outline-offset: -3px;
-		border-radius: inherit;
-	}
-	.title {
-		flex: 1;
-		min-width: 0;
-	}
-	.group a[aria-current='page'] .title {
-		color: var(--accent);
-		font-weight: 600;
-	}
-	.count {
-		font-family: var(--ui-font);
-		font-size: 0.85rem;
-		color: var(--muted);
-		font-variant-numeric: tabular-nums;
-	}
-	.group :global(svg) {
-		width: 0.9rem;
-		height: 0.9rem;
-		flex: none;
-		color: color-mix(in oklab, var(--muted) 70%, transparent);
-	}
-	.group :global(svg:dir(rtl)) {
-		transform: scaleX(-1);
-	}
-
-	/* Themes as previews to pick from, the chosen one ringed. */
-	.themes {
-		display: grid;
-		grid-template-columns: repeat(3, 1fr);
-		gap: 0.75rem;
-	}
-	.swatch {
-		appearance: none;
-		background: none;
-		border: 0;
-		padding: 0;
-		display: grid;
-		gap: 0.4rem;
-		justify-items: center;
-		cursor: pointer;
-		font-family: var(--ui-font);
-		font-size: 0.8rem;
-		color: var(--muted);
-		min-height: 2.75rem;
-	}
-	.swatch:focus-visible {
-		outline: none;
-	}
-	.swatch:focus-visible .sample {
-		outline: 3px solid color-mix(in oklab, var(--accent) 55%, transparent);
-		outline-offset: 2px;
-	}
-	.sample {
-		display: grid;
-		place-items: center;
-		width: 100%;
-		aspect-ratio: 3 / 2;
-		border-radius: calc(var(--radius) + 2px);
-		font-size: 1.5rem;
-		line-height: 1;
-		box-shadow:
-			inset 0 0 0 1px color-mix(in oklab, #000 10%, transparent),
-			0 1px 3px color-mix(in oklab, #000 12%, transparent);
-		transition:
-			box-shadow 0.25s var(--ease),
-			transform 0.3s var(--ease);
-	}
-	.swatch:active .sample {
-		transform: scale(0.96);
-	}
-	.swatch[aria-checked='true'] {
-		color: var(--ink);
-		font-weight: 600;
-	}
-	.swatch[aria-checked='true'] .sample {
-		box-shadow:
-			inset 0 0 0 1px color-mix(in oklab, #000 10%, transparent),
-			0 0 0 2px var(--paper),
-			0 0 0 4px var(--accent);
-	}
-	[data-swatch='morning'] .sample {
-		font-family: 'Alegreya Variable', serif;
-		color: #1c2420;
-	}
-	[data-swatch='vesper'] .sample {
-		font-family: 'Bodoni Moda Variable', serif;
-		font-style: italic;
-		color: #f2e8dc;
-	}
-	[data-swatch='field'] .sample {
-		font-family: 'Bricolage Grotesque Variable', sans-serif;
-		font-weight: 700;
-		color: #2c47d0;
-	}
-	.home {
-		display: flex;
-	}
-	.modes {
-		display: flex;
-		margin-top: 1rem;
-	}
-	.themes + .hint,
-	.modes + .hint {
-		margin-top: 0.6rem;
-		padding-inline: 0.9rem;
-	}
 	.status {
 		margin-top: 0.5rem;
 		padding-inline: 0.9rem;
 	}
 
-	@media (max-width: 40rem) {
-		.sheet {
-			width: 100vw;
-			height: auto;
-			max-height: calc(100dvh - max(2.5rem, env(safe-area-inset-top)));
-			margin: auto 0 0;
-			border-width: 1px 0 0;
-			border-radius: calc(var(--radius) + 10px) calc(var(--radius) + 10px) 0 0;
-		}
-		.sheet[open] {
-			animation-name: slide-up;
-		}
-		.sheet-body {
-			padding-bottom: max(1.75rem, env(safe-area-inset-bottom));
-		}
-		@keyframes slide-up {
-			from {
-				transform: translateY(100%);
-			}
+	@media (prefers-reduced-motion: reduce) {
+		.menu[open],
+		.shelf li,
+		.side {
+			animation: none;
 		}
 	}
 </style>
