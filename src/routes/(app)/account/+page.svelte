@@ -1,9 +1,10 @@
 <script lang="ts">
-	// Signing in and out, and locking your thoughts with a password.
-	import { library, LibraryError } from '#lib/client/library.svelte.ts';
-	import Unlock from '#lib/components/Unlock.svelte';
-	import LanguagePicker from '#lib/components/LanguagePicker.svelte';
+	// Account: who you are (or the form to sign in or create an account), then
+	// the settings as a list of pages: appearance, privacy, your data.
+	import { library, LibraryError, UnsyncedError } from '#lib/client/library.svelte.ts';
 	import { i18n, t } from '#lib/client/i18n.svelte.ts';
+	import { findTheme, THEMES } from '#lib/themes.ts';
+	import Icon from '#lib/components/Icon.svelte';
 
 	type Failure = { message: string; field?: string } | null;
 
@@ -13,12 +14,6 @@
 	let password = $state('');
 	let error = $state<Failure>(null);
 	let busy = $state(false);
-
-	let newPassword = $state('');
-	let repeat = $state('');
-	let lockError = $state<Failure>(null);
-	let lockBusy = $state(false);
-	let lockDone = $state<string | null>(null);
 
 	const failure = (thrown: unknown, fallback: string): Failure =>
 		thrown instanceof LibraryError
@@ -30,17 +25,26 @@
 		busy = true;
 		error = null;
 		try {
-			if (creating) await library.signUp(name, email, password);
-			else await library.signIn(email, password);
+			try {
+				if (creating) await library.signUp(name, email, password);
+				else await library.signIn(email, password);
+			} catch (thrown) {
+				// This device holds another account's unsynced changes: only on the reader's word.
+				if (!(thrown instanceof UnsyncedError) || !confirm(thrown.message)) throw thrown;
+				if (creating) await library.signUp(name, email, password, true);
+				else await library.signIn(email, password, true);
+			}
 			password = '';
 		} catch (thrown) {
-			error = failure(thrown, t.errors.generic);
+			if (!(thrown instanceof UnsyncedError)) error = failure(thrown, t.errors.generic);
 		} finally {
 			busy = false;
 		}
 	}
 
 	async function signOut() {
+		// Count what other tabs wrote too.
+		await library.refresh();
 		const waiting = library.pending;
 		if (waiting > 0 && !confirm(t.account.signOutConfirm(waiting))) {
 			return;
@@ -52,32 +56,6 @@
 		}
 	}
 
-	async function changeLock(event: SubmitEvent | null, remove = false) {
-		event?.preventDefault();
-		lockError = null;
-		lockDone = null;
-		if (!remove && newPassword.length < 8) {
-			lockError = { message: t.account.tooShort, field: 'new' };
-			return;
-		}
-		if (!remove && newPassword !== repeat) {
-			lockError = { message: t.account.mismatch, field: 'repeat' };
-			return;
-		}
-		if (remove && !confirm(t.account.removeConfirm)) return;
-		lockBusy = true;
-		try {
-			const had = Boolean(library.lock);
-			await library.setLock(remove ? null : newPassword);
-			newPassword = repeat = '';
-			lockDone = remove ? t.account.removed : had ? t.account.changed : t.account.locked;
-		} catch (thrown) {
-			lockError = failure(thrown, t.account.couldNotChangeLock);
-		} finally {
-			lockBusy = false;
-		}
-	}
-
 	const synced = $derived(
 		library.lastSync
 			? new Date(library.lastSync).toLocaleString(i18n.locale, {
@@ -86,6 +64,8 @@
 				})
 			: null
 	);
+	const theme = $derived(findTheme(library.theme) ?? THEMES[0]);
+	const locked = $derived(Boolean(library.appLock || library.lock));
 </script>
 
 <svelte:head>
@@ -99,71 +79,6 @@
 			{library.me.email}
 			{#if synced}<br />{t.account.lastSynced(synced)}{/if}
 		</p>
-		<p><button class="link" onclick={signOut}>{t.account.signOut}</button></p>
-		<p class="hint">{t.account.signOutHint}</p>
-
-		<section>
-			<h2>{t.account.lock}</h2>
-			{#if library.lock && library.locked}
-				<Unlock />
-			{:else}
-				<p>
-					{library.lock ? t.account.lockedInfo : t.account.lockOffer}
-				</p>
-				<form onsubmit={(event) => changeLock(event)}>
-					<!-- Lets password managers file the new password under this account. -->
-					<input
-						class="visually-hidden"
-						autocomplete="username"
-						value={library.me.email}
-						readonly
-						tabindex="-1"
-						aria-hidden="true"
-					/>
-					<label class="field">
-						<span>{library.lock ? t.account.newPassword : t.common.password}</span>
-						<input type="password" autocomplete="new-password" bind:value={newPassword} />
-						{#if lockError?.field === 'new'}<span class="error">{lockError.message}</span>{/if}
-					</label>
-					<label class="field">
-						<span>{t.account.repeat}</span>
-						<input type="password" autocomplete="new-password" bind:value={repeat} />
-						{#if lockError?.field === 'repeat'}<span class="error">{lockError.message}</span>{/if}
-					</label>
-					{#if lockError && !lockError.field}<p class="error" role="alert">
-							{lockError.message}
-						</p>{/if}
-					{#if lockDone}<p role="status">{lockDone}</p>{/if}
-					<div class="row">
-						<button class="button" disabled={lockBusy || !library.online}>
-							{lockBusy
-								? t.account.encrypting
-								: library.lock
-									? t.account.changePassword
-									: t.account.lockWithPassword}
-						</button>
-						{#if library.lock}
-							<button
-								type="button"
-								class="link"
-								disabled={lockBusy || !library.online}
-								onclick={() => changeLock(null, true)}>{t.account.removeLock}</button
-							>
-							<button type="button" class="link" onclick={() => library.lockDevice()}
-								>{t.account.lockDevice}</button
-							>
-						{/if}
-					</div>
-					{#if !library.online}<p class="hint">{t.account.lockNeedsConnection}</p>{/if}
-				</form>
-			{/if}
-		</section>
-
-		<section>
-			<h2>{t.menu.language}</h2>
-			<LanguagePicker />
-			<p class="hint">{t.account.languageSaved}</p>
-		</section>
 	{:else}
 		<h1>{creating ? t.account.createHeading : t.account.signIn}</h1>
 		<p class="lede">
@@ -213,6 +128,43 @@
 			{#if !library.online}<p class="hint">{t.account.signInNeedsConnection}</p>{/if}
 		</form>
 	{/if}
+
+	<nav aria-label={t.account.settings}>
+		{#if !library.me}<h2 class="label">{t.account.settings}</h2>{/if}
+		<ul class="group">
+			<li>
+				<a href="/account/appearance">
+					<span class="title">{t.account.appearance}</span>
+					<span class="count">{t.themes[theme.id] ?? theme.name}</span>
+					<Icon name="chevron" />
+				</a>
+			</li>
+			<li>
+				<a href="/account/privacy">
+					<span class="title">{t.account.privacy}</span>
+					<span class="count state">{locked ? t.stats.on : t.stats.off}</span>
+					<Icon name="chevron" />
+				</a>
+			</li>
+			<li>
+				<a href="/account/data">
+					<span class="title">{t.account.data}</span>
+					<span class="count">{library.mine.length}</span>
+					<Icon name="chevron" />
+				</a>
+			</li>
+		</ul>
+	</nav>
+
+	{#if library.me}
+		<div class="out">
+			<button class="button secondary" onclick={signOut}>{t.account.signOut}</button>
+			<p class="hint">{t.account.signOutHint}</p>
+			{#if error}<p class="error" role="alert">{error.message}</p>{/if}
+		</div>
+	{/if}
+
+	<p class="nerds"><a href="/account/stats">{t.account.stats}</a></p>
 </main>
 
 <style>
@@ -220,13 +172,34 @@
 		padding: clamp(1.5rem, 5vh, 3rem) clamp(1.25rem, 8vw, 7rem) 4rem;
 		max-width: 38rem;
 	}
+	h1 + .muted {
+		margin-top: 0;
+	}
 	.lede {
 		margin-bottom: 2rem;
 	}
-	section {
-		margin-top: 3rem;
-		padding-top: 1.5rem;
-		border-top: 1px solid var(--rule);
+	nav {
+		margin-top: 2rem;
+	}
+	nav h2 {
+		margin: 0 0 0.6rem;
+		padding-inline-start: 0.9rem;
+	}
+	.state::first-letter {
+		text-transform: uppercase;
+	}
+	.out {
+		display: grid;
+		justify-items: start;
+		gap: 0.6rem;
+		margin-top: 2.5rem;
+	}
+	.nerds {
+		margin-top: 3.5rem;
+		font-size: 0.85rem;
+	}
+	.nerds a {
+		color: var(--muted);
 	}
 	.row {
 		display: flex;

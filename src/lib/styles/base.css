@@ -388,6 +388,22 @@ input[type='checkbox'] {
 	width: 1.15rem;
 	height: 1.15rem;
 }
+/* A labelled row holding a switch, its words before it. */
+.switch-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+	min-height: 2.75rem;
+	padding: 0.35em 0.5em 0.35em 0.8em;
+	border-radius: calc(var(--radius) + 2px);
+	background: var(--wash);
+	font-family: var(--ui-font);
+	font-size: 0.95rem;
+	line-height: 1.4;
+	cursor: pointer;
+}
+
 /* A switch: a checkbox with role="switch", drawn as a track with a knob that
    slides across and fills it with the accent. The knob stretches while held. */
 input[type='checkbox'][role='switch'] {
@@ -530,4 +546,71 @@ input[type='color'] {
 		animation-duration: 0.01ms !important;
 		transition-duration: 0.01ms !important;
 	}
+}
+
+/* An inset group of links, as on a settings page: rows on a raised fill,
+   hairlines between them that start where the text does, a chevron at the
+   end. A row's `.title` takes the room; a `.count` before the chevron says
+   how many or what is chosen. */
+.group {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	border-radius: calc(var(--radius) + 4px);
+	background: color-mix(in oklab, var(--ink) 5%, transparent);
+	overflow: hidden;
+}
+.group li + li a::before {
+	content: '';
+	position: absolute;
+	top: 0;
+	inset-inline: 0.9rem 0;
+	border-top: 1px solid color-mix(in oklab, var(--ink) 10%, transparent);
+}
+.group a {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	min-height: 2.9rem;
+	padding: 0.5rem 0.75rem 0.5rem 0.9rem;
+	color: inherit;
+	text-decoration: none;
+	font-size: 1.05rem;
+	line-height: 1.3;
+	transition: background-color 0.2s var(--ease);
+}
+.group a:hover {
+	background: color-mix(in oklab, var(--ink) 5%, transparent);
+}
+.group a:active {
+	background: color-mix(in oklab, var(--ink) 10%, transparent);
+	transition-duration: 0s;
+}
+.group a:focus-visible {
+	outline-offset: -3px;
+	border-radius: inherit;
+}
+.group .title {
+	flex: 1;
+	min-width: 0;
+}
+.group a[aria-current='page'] .title {
+	color: var(--accent);
+	font-weight: 600;
+}
+.group .count {
+	font-family: var(--ui-font);
+	font-size: 0.85rem;
+	color: var(--muted);
+	font-variant-numeric: tabular-nums;
+}
+.group svg {
+	width: 0.9rem;
+	height: 0.9rem;
+	flex: none;
+	color: color-mix(in oklab, var(--muted) 70%, transparent);
+}
+.group svg:dir(rtl) {
+	transform: scaleX(-1);
 }

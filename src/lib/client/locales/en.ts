@@ -8,7 +8,12 @@ const thoughts = (n: number) => (n === 1 ? 'thought' : 'thoughts');
 const changes = (n: number) => (n === 1 ? '1 change' : `${n} changes`);
 
 export const en = {
-	themes: { morning: 'Morning', vesper: 'Vesper', field: 'Field' } as Record<string, string>,
+	themes: {
+		morning: 'Neutral',
+		book: 'Book',
+		vesper: 'Salon',
+		field: 'Confetti'
+	} as Record<string, string>,
 
 	bar: {
 		offline: 'offline',
@@ -27,9 +32,25 @@ export const en = {
 		lightOrDark: 'Light or dark',
 		modes: { system: 'System', light: 'Light', dark: 'Dark' },
 		ownTheme: 'This thought is set in its own theme.',
+		ownColor: 'This thought is set in its own color.',
 		language: 'Language',
 		account: 'Account',
 		signInOrCreate: 'Sign in or create an account',
+		signIn: 'Sign in',
+		accent: 'Color',
+		defaultColor: 'Default',
+		paper: 'Paper',
+		themeOwn: 'The theme’s own',
+		otherAccent: 'Another accent',
+		tones: {
+			blush: 'Blush',
+			peach: 'Peach',
+			butter: 'Butter',
+			mint: 'Mint',
+			sky: 'Sky',
+			lavender: 'Lavender',
+			sand: 'Sand'
+		} as Record<string, string>,
 		dashboard: 'Dashboard'
 	},
 
@@ -72,6 +93,10 @@ export const en = {
 		kept: 'Kept in your thoughts',
 		couldNotKeep: 'Could not keep it.',
 		share: 'Share',
+		shareImage: 'Share as image',
+		couldNotShareImage: 'Could not make the image.',
+		saveImage: 'Save image',
+		imageSiteName: 'Site name on the image',
 		untitled: 'A thought',
 		fromCollection: 'From',
 		fromMine: 'From',
@@ -104,7 +129,7 @@ export const en = {
 		signOutConfirm: (n: number) =>
 			`${n === 1 ? '1 of your changes has' : `${n} of your changes have`} not reached the server yet and will be lost. Sign out anyway?`,
 		couldNotSignOut: 'Could not sign out.',
-		lock: 'Lock',
+		lock: 'Thought lock',
 		lockedInfo:
 			'Your thoughts are encrypted on your devices before they are sent, with a key made from your password. The server cannot read them.',
 		lockOffer:
@@ -134,7 +159,112 @@ export const en = {
 		name: 'Name',
 		email: 'Email',
 		signInNeedsConnection: 'Signing in needs a connection.',
-		languageSaved: 'Your account remembers the language on every device.'
+		languageSaved: 'Your account remembers the language on every device.',
+		switchConfirm: (n: number, owner: string | null) =>
+			`This device has ${n === 1 ? '1 change' : `${n} changes`} by ${owner ?? 'another account'} that never reached the server. Signing in to a different account discards ${n === 1 ? 'it' : 'them'}. Export your thoughts first to keep a copy. Sign in anyway?`,
+		data: 'Your data',
+		exportHint:
+			'Download your thoughts as Markdown files in a zip, made on this device. Those already in your account are in “synced”, those only on this device in “this-device”.',
+		exportButton: 'Export thoughts',
+		exporting: 'Exporting…',
+		nothingToExport: 'You have no thoughts to export yet.',
+		couldNotExport: 'Could not export.',
+		deleteAccount: 'Delete account',
+		deleteHint:
+			'Deletes your account and every thought in it, on the server and on this device, at once. It cannot be undone.',
+		deleteConfirm: (email: string) =>
+			`Delete the account ${email} and all its thoughts? Export them first if you want a copy.`,
+		deleteConfirmAgain: 'Are you sure? Everything is deleted right away and cannot be recovered.',
+		deleting: 'Deleting…',
+		couldNotDelete: 'Could not delete the account.',
+		deleted: 'Your account is deleted.',
+		stats: 'Stats for nerds',
+		settings: 'Settings',
+		appearance: 'Appearance',
+		privacy: 'Privacy',
+		export: 'Export',
+		lockNeedsAccount:
+			'Signed in, you can lock your thoughts with a password, so they are encrypted before they leave your devices.'
+	},
+
+	appLock: {
+		delete: 'Delete',
+		digitsEntered: (n: number, of: number) => `${n} of ${of} digits entered`,
+		enterPasscode: 'Enter Passcode',
+		newPasscode: 'Enter a new passcode',
+		repeatPasscode: 'Re-enter your new passcode',
+		mismatchRetry: 'Passcodes did not match. Try again.',
+		setPasscode: 'Set passcode',
+		title: 'App lock',
+		offer:
+			'Ask for a passcode or password whenever the app opens on this device. Everything it keeps here is then stored encrypted and only read into memory once unlocked.',
+		onInfo: (kind: 'pin' | 'password') =>
+			`The app asks for your ${kind === 'pin' ? 'passcode' : 'password'} when it opens, and again after five minutes away. Everything it keeps on this device is encrypted.`,
+		kinds: { pin: '6-digit passcode', password: 'Password' },
+		repeat: 'Repeat it',
+		tooShort: 'Use at least 8 characters.',
+		mismatch: 'They do not match.',
+		turnOn: 'Turn on',
+		change: 'Change',
+		turnOff: 'Turn off',
+		turnOffConfirm: 'Turn the app lock off? Everything on this device will be stored unencrypted.',
+		lockNow: 'Lock now',
+		working: 'Encrypting…',
+		on: 'The app lock is on.',
+		changed: 'Changed.',
+		off: 'The app lock is off.',
+		failed: 'Could not change the app lock.',
+		weakHint:
+			'A passcode keeps out someone who picks up your device. Against someone who copies its storage, a long password is much stronger.',
+		forgetHint:
+			'If you forget it, the only way back in is to erase this device’s data. Thoughts in your account come back when you sign in; the rest is lost.',
+		prompt: (site: string) => `${site} is locked`,
+		enter: (kind: 'pin' | 'password'): string =>
+			kind === 'pin' ? 'Enter your passcode.' : 'Enter your password.',
+		unlock: 'Unlock',
+		unlocking: 'Unlocking…',
+		wrong: 'That is not it.',
+		forgot: 'Forgot it?',
+		eraseConfirm:
+			'Erase everything this app keeps on this device? Thoughts that are not in your account are lost for good.',
+		eraseConfirmAgain: 'Are you sure? This cannot be undone.',
+		erase: 'Erase this device’s data'
+	},
+
+	stats: {
+		title: 'Stats for nerds',
+		app: 'This app',
+		server: 'The server',
+		device: 'This device',
+		built: 'Built',
+		commit: 'Commit',
+		started: 'Running since',
+		unknown: 'unknown',
+		notYet: 'not seen yet',
+		database: 'Database',
+		revision: 'Revision',
+		personalRevision: 'Your revision',
+		lastSync: 'Last sync',
+		never: 'never',
+		collections: 'Collections',
+		publicThoughts: 'Public thoughts',
+		yourThoughts: 'Your thoughts',
+		records: 'Personal records',
+		pending: 'Waiting to sync',
+		sealed: 'Locked (unreadable here)',
+		keys: 'Thought-lock keys',
+		appLock: 'App lock',
+		on: 'on',
+		off: 'off',
+		storage: 'Storage used',
+		persisted: 'Protected from eviction',
+		yes: 'yes',
+		no: 'no',
+		worker: 'Service worker',
+		online: 'Online',
+		language: 'Language',
+		theme: 'Theme',
+		userAgent: 'Browser'
 	},
 
 	write: {
@@ -208,7 +338,10 @@ export const en = {
 		unlockFirst: 'Unlock your thoughts on this device first.',
 		wrongLockPassword: 'That password does not open your thoughts.',
 		signInToLock: 'Sign in to lock your thoughts.',
-		changedElsewhere: 'Your thoughts changed on another device. Try again.'
+		changedElsewhere: 'Your thoughts changed on another device. Try again.',
+		unlockToExport: 'Unlock your thoughts on this device to export them.',
+		otherAccount: (owner: string | null) =>
+			`This browser is signed in to another account, but this device has unsynced changes by ${owner ?? 'the previous account'}. Sign in as ${owner ?? 'that account'} here to sync them.`
 	},
 
 	serverErrors: {
@@ -218,7 +351,9 @@ export const en = {
 		name_invalid: 'Enter a name (up to 100 characters).',
 		password_short: `Use at least ${MIN_PASSWORD} characters.`,
 		password_long: 'That password is too long.',
-		sign_up_closed: 'Sign-up is closed on this site.'
+		sign_up_closed: 'Sign-up is closed on this site.',
+		too_many_attempts: 'Too many wrong passwords. Try again in a few minutes.',
+		last_admin: 'You are the only admin. Make someone else an admin first.'
 	} satisfies Record<ErrorCode, string>,
 
 	thoughtErrors: (problem: ThoughtProblem, limit: number): string =>

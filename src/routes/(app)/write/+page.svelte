@@ -3,7 +3,7 @@
 	// the thought will be: its text set as it reads, the attribution under it,
 	// and notes and style folded away until wanted. Style choices restyle the
 	// page as you make them.
-	import { goto } from '$app/navigation';
+	import { afterNavigate, goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { library, LibraryError } from '#lib/client/library.svelte.ts';
 	import { useLook } from '#lib/client/look.svelte.ts';
@@ -50,6 +50,19 @@
 		if (!existing) textarea?.focus();
 	});
 
+	// Cancel, and saving an edit, return to the page the editor was opened from
+	// (a collection's list, the day's thought, ...). Opened directly, they go to
+	// the thought itself, or to your thoughts for a new one.
+	let cameFromApp = false;
+	afterNavigate(({ from }) => (cameFromApp = from !== null));
+	const fallback = existing ? `/t/${existing.id}` : '/c/mine';
+
+	function cancel(event: MouseEvent) {
+		if (!cameFromApp) return;
+		event.preventDefault();
+		history.back();
+	}
+
 	async function save(event: SubmitEvent) {
 		event.preventDefault();
 		saving = true;
@@ -59,7 +72,8 @@
 				{ text, author, source, notes, theme, color: colored ? color : '', font, lang },
 				{ id: existing?.id }
 			);
-			await goto(`/t/${saved}`);
+			if (existing && cameFromApp) history.back();
+			else await goto(`/t/${saved}`);
 		} catch (failure) {
 			error =
 				failure instanceof LibraryError
@@ -107,13 +121,13 @@
 	const INLINE_ERRORS = ['text', 'notes', 'font', 'lang'];
 </script>
 
-<!-- A theme as a dot of its paper (split where it has a dark mode); the reader's own, an empty ring. -->
+<!-- A theme as a dot of its paper, light and dark; the reader's own, an empty ring. -->
 {#snippet themeSwatch(value: string)}
 	{@const option = findTheme(value)}
 	<span
 		class={['theme-swatch', { reader: !option }]}
 		style:--light={option?.light}
-		style:--dark={option?.dark ?? option?.light}
+		style:--dark={option?.dark}
 		aria-hidden="true"
 	></span>
 {/snippet}
@@ -271,7 +285,7 @@
 						aria-keyshortcuts="Control+Enter Meta+Enter"
 						title="Ctrl/⌘ + Enter">{saving ? t.write.saving : t.write.save}</button
 					>
-					<a class="link" href={existing ? `/t/${existing.id}` : '/c/mine'}>{t.write.cancel}</a>
+					<a class="link" href={fallback} onclick={cancel}>{t.write.cancel}</a>
 					{#if existing}
 						<button type="button" class="link delete" onclick={remove}>{t.write.delete}</button>
 					{/if}
@@ -484,20 +498,6 @@
 	}
 
 	/* The switch on a filled row, the height of the fields beside it. */
-	.switch-row {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 0.75rem;
-		min-height: 2.75rem;
-		padding: 0.35em 0.5em 0.35em 0.8em;
-		border-radius: calc(var(--radius) + 2px);
-		background: var(--wash);
-		font-family: var(--ui-font);
-		font-size: 0.95rem;
-		line-height: 1.4;
-		cursor: pointer;
-	}
 	.colors {
 		grid-column: 1 / -1;
 		margin: -0.25rem 0 1.5rem;
