@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { currentRev, databaseId, open, Invalid, type Db } from './db.ts';
+import { backup, currentRev, databaseId, open, Invalid, type Db } from './db.ts';
+import { DatabaseSync } from 'node:sqlite';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
 	authenticate,
 	createSession,
@@ -29,6 +33,25 @@ beforeEach(() => {
 });
 
 const defaultId = () => findCollection(db, 'default')!.id;
+
+describe('backup', () => {
+	it('copies the database into a file SQLite opens', () => {
+		createCollection(db, { slug: 'kept', name: 'Kept' });
+		const dir = mkdtempSync(join(tmpdir(), 'qoddy-test-'));
+		try {
+			const path = join(dir, 'copy.db');
+			writeFileSync(path, backup(db));
+			const copy = new DatabaseSync(path, { readOnly: true });
+			expect(copy.prepare('SELECT name FROM collection WHERE slug = ?').get('kept')).toEqual({
+				name: 'Kept'
+			});
+			expect(databaseId(copy)).toBe(databaseId(db));
+			copy.close();
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+});
 
 describe('accounts', () => {
 	it('signs up, authenticates and keeps sessions', async () => {
@@ -89,6 +112,12 @@ describe('settings', () => {
 		expect(getSettings(db).allow_sign_up).toBe(false);
 		expect(() => setSetting(db, 'default_theme', 'nope')).toThrow(Invalid);
 		expect(() => setSetting(db, 'daily', 'true')).toThrow(/Unknown setting/);
+		expect(getSettings(db).hide_from_search).toBe(false);
+		setSetting(db, 'hide_from_search', 'true');
+		expect(getSettings(db).hide_from_search).toBe(true);
+		expect(
+			sync(db, null, parseSyncRequest({ since: 0, mineSince: 0 })).settings
+		).not.toHaveProperty('hide_from_search');
 	});
 
 	it('puts any public collection, or the reader’s own thoughts, on the home page', () => {

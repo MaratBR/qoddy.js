@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import { db, Invalid } from '../src/lib/server/db.ts';
-import { createUser, setPassword, setRole } from '../src/lib/server/accounts.ts';
+import { createUser, listUsers, setPassword, setRole } from '../src/lib/server/accounts.ts';
 import {
 	createCollection,
 	findCollection,
@@ -19,12 +19,13 @@ const USAGE = `Usage: pnpm qoddy <command>
   create-user <email> <name> [--admin]   password read from stdin
   set-password <email>                   password read from stdin; signs out every device
   set-role <email> <admin|user>
+  users                                  list accounts
   collections                            list public collections
   add-collection <slug> <name>
   import <file.csv> [--collection <slug>]  into the home page's collection unless given;
                                          columns: text, author, source, notes, lang, theme, color, font
   settings                               show site settings
-  settings set <key> <value>             site_name, allow_sign_up, default_theme,
+  settings set <key> <value>             site_name, allow_sign_up, default_theme, hide_from_search,
                                          home (a collection's address, or mine: the reader's own)`;
 
 async function stdinPassword(): Promise<string> {
@@ -70,6 +71,9 @@ async function main(argv: string[]): Promise<void> {
 			need(2);
 			if (args[1] !== 'admin' && args[1] !== 'user') throw new Invalid('Role is admin or user.');
 			console.log(`${setRole(db(), args[0], args[1]).email} is now ${args[1]}`);
+			break;
+		case 'users':
+			for (const u of listUsers(db())) console.log(`${u.email}\t${u.role}\t${u.name}`);
 			break;
 		case 'collections':
 			for (const c of listCollections(db())) console.log(`${c.slug}\t${c.count}\t${c.name}`);

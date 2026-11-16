@@ -22,7 +22,8 @@ export const actions: Actions = {
 				site_name: values.site_name ?? '',
 				default_theme: values.default_theme ?? '',
 				allow_sign_up: values.allow_sign_up === 'on',
-				home: homeFromSlug(db(), values.home ?? '')
+				home: homeFromSlug(db(), values.home ?? ''),
+				hide_from_search: values.hide_from_search === 'on'
 			})
 		);
 		if (!result.ok) return result.failure;

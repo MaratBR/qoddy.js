@@ -91,11 +91,12 @@ When a new version is deployed, the worker replaces the old cache, and open tabs
 pnpm qoddy create-user <email> <name> [--admin]      # password from stdin
 pnpm qoddy set-password <email>                      # password from stdin; signs out every device
 pnpm qoddy set-role <email> <admin|user>
+pnpm qoddy users
 pnpm qoddy collections
 pnpm qoddy add-collection <slug> <name>
 pnpm qoddy import <file.csv> [--collection <slug>]   # home collection unless given
 pnpm qoddy settings
-pnpm qoddy settings set <key> <value>                # site_name, allow_sign_up, default_theme, home (a slug, or mine)
+pnpm qoddy settings set <key> <value>                # site_name, allow_sign_up, default_theme, hide_from_search, home (a slug, or mine)
 ```
 
 The CLI uses the same `DATABASE_PATH` as the server.
@@ -144,9 +145,20 @@ pnpm build
 DATABASE_PATH=/var/lib/qoddy/qoddy.db ORIGIN=https://qoddy.example pnpm start
 ```
 
+Or with Docker on a host you reach over SSH:
+
+```sh
+scripts/deploy.sh --build local --domain qoddy.example --email you@example.com user@host
+scripts/deploy.sh --build remote user@host     # send the source and build there; the domain is remembered
+```
+
+- **Containers:** `qoddy` (the app, on `--port`, default 3040) and, with `--domain`, `qoddy-caddy`. Caddy takes ports 80 and 443 and gets and renews a Let's Encrypt certificate. The domain must already point at the host. Both run with `--restart unless-stopped`, and each deploy replaces them.
+- **On the host:** the database is in the `qoddy-data` volume. `~/qoddy-deployment` holds `qoddy.env` (extra environment), `tls.env` (the remembered domain) and `caddy/` (the certificates and keys).
+- **First admin:** when the database has no accounts, the script asks for the admin's email and password.
+
 - **What to deploy:** `build/`, `package.json` and production `node_modules` (`pnpm install --prod`).
 - **Hosting:** serve it behind HTTPS. Service workers and Secure cookies require HTTPS everywhere except localhost.
-- **Backups:** back up the SQLite file, using `sqlite3 qoddy.db ".backup backup.db"` while the server is running.
+- **Backups:** download one from the dashboard (Settings → Download backup), or run `sqlite3 qoddy.db ".backup backup.db"` while the server is running.
 
 ## Security
 

@@ -1,0 +1,14 @@
+.git
+.claude
+.svelte-kit
+.playwright-mcp
+build
+node_modules
+*.db
+*.db-shm
+*.db-wal
+.env
+.env.*
+fixtures
+Dockerfile
+.dockerignore

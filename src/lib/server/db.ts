@@ -8,6 +8,9 @@
 // Clients ask for rows with `rev` above the last one they saw; deleted rows
 // stay as tombstones so the deletion syncs too.
 
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type { ErrorCode } from '../wire.ts';
 
@@ -107,7 +110,9 @@ const MIGRATIONS: string[] = [
 	`
 	ALTER TABLE revision ADD COLUMN db TEXT NOT NULL DEFAULT '';
 	UPDATE revision SET db = lower(hex(randomblob(8)));
-	`
+	`,
+	// Asks search engines not to index the site (see `hooks.server.ts`). Server-only: not synced.
+	`ALTER TABLE settings ADD COLUMN hide_from_search INTEGER NOT NULL DEFAULT 0;`
 ];
 
 function migrate(db: Db): void {
@@ -169,6 +174,21 @@ export function currentRev(db: Db): number {
 /** This database's id, which the revisions belong to. */
 export function databaseId(db: Db): string {
 	return (db.prepare('SELECT db FROM revision WHERE id = 1').get() as { db: string }).db;
+}
+
+/**
+ * A consistent copy of the whole database as an SQLite file, taken with
+ * `VACUUM INTO` so it is safe while the server keeps writing.
+ */
+export function backup(db: Db): Uint8Array<ArrayBuffer> {
+	const dir = mkdtempSync(join(tmpdir(), 'qoddy-backup-'));
+	try {
+		const path = join(dir, 'backup.db');
+		db.prepare('VACUUM INTO ?').run(path);
+		return readFileSync(path);
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
 }
 
 /** A user-facing failure: bad input or a rule the action breaks. */

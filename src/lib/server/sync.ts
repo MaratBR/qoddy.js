@@ -242,7 +242,7 @@ function pull(
 
 	const settings = getSettings(db);
 	if (settings.rev > since) {
-		const { rev: _, ...rest } = settings;
+		const { rev: _, hide_from_search: __, ...rest } = settings;
 		response.settings = rest;
 	}
 	response.collections = (

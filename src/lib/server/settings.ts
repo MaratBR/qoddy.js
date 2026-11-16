@@ -12,18 +12,29 @@ export interface Settings {
 	default_theme: string;
 	/** The public collection whose thought of the day is the home page; null shows each reader's own thoughts. */
 	home: number | null;
+	/** Ask search engines not to index the site. The server's alone: never synced to readers. */
+	hide_from_search: boolean;
 }
 
-export const SETTING_KEYS = ['site_name', 'allow_sign_up', 'default_theme', 'home'] as const;
+export const SETTING_KEYS = [
+	'site_name',
+	'allow_sign_up',
+	'default_theme',
+	'home',
+	'hide_from_search'
+] as const;
 
 export function getSettings(db: Db): Settings & { rev: number } {
 	const row = db
-		.prepare('SELECT site_name, allow_sign_up, default_theme, home, rev FROM settings WHERE id = 1')
+		.prepare(
+			'SELECT site_name, allow_sign_up, default_theme, home, hide_from_search, rev FROM settings WHERE id = 1'
+		)
 		.get() as {
 		site_name: string;
 		allow_sign_up: number;
 		default_theme: string;
 		home: number | null;
+		hide_from_search: number;
 		rev: number;
 	};
 	return {
@@ -31,6 +42,7 @@ export function getSettings(db: Db): Settings & { rev: number } {
 		allow_sign_up: row.allow_sign_up === 1,
 		default_theme: row.default_theme,
 		home: row.home,
+		hide_from_search: row.hide_from_search === 1,
 		rev: row.rev
 	};
 }
@@ -60,8 +72,16 @@ export function updateSettings(db: Db, changes: Partial<Settings>): Settings {
 			throw new Invalid('That collection no longer exists.', 'home');
 		}
 		db.prepare(
-			'UPDATE settings SET site_name = ?, allow_sign_up = ?, default_theme = ?, home = ?, rev = ? WHERE id = 1'
-		).run(next.site_name, +next.allow_sign_up, next.default_theme, next.home, nextRev(db));
+			`UPDATE settings SET site_name = ?, allow_sign_up = ?, default_theme = ?, home = ?,
+				hide_from_search = ?, rev = ? WHERE id = 1`
+		).run(
+			next.site_name,
+			+next.allow_sign_up,
+			next.default_theme,
+			next.home,
+			+next.hide_from_search,
+			nextRev(db)
+		);
 		return getSettings(db);
 	});
 }
@@ -73,8 +93,9 @@ export function setSetting(db: Db, key: string, value: string): Settings {
 		case 'default_theme':
 			return updateSettings(db, { [key]: value });
 		case 'allow_sign_up':
+		case 'hide_from_search':
 			if (value !== 'true' && value !== 'false') throw new Invalid('Expected true or false.');
-			return updateSettings(db, { allow_sign_up: value === 'true' });
+			return updateSettings(db, { [key]: value === 'true' });
 		case 'home':
 			return updateSettings(db, { home: homeFromSlug(db, value) });
 		default:

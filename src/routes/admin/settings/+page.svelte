@@ -67,11 +67,39 @@
 		</span>
 	</div>
 
+	<div class="field">
+		<label class="check">
+			<input
+				type="checkbox"
+				name="hide_from_search"
+				checked={failed ? failed.hide_from_search === 'on' : s.hide_from_search}
+			/>
+			Hide this website from search engines
+		</label>
+		<span class="hint">
+			Asks search engines not to list the site. Well-behaved ones listen; pages already listed drop
+			out when they next visit. It does not keep anyone from opening the site.
+		</span>
+	</div>
+
 	{#if form?.error && !('field' in form && form.field)}<p class="error">{form.error}</p>{/if}
 	<button class="button">Save settings</button>
 </form>
 
+<section class="backup">
+	<h2>Backup</h2>
+	<p class="hint">
+		A copy of the whole SQLite database: collections, accounts and readers’ synced thoughts. Keep it
+		private.
+	</p>
+	<a class="button" href="/admin/backup" download>Download backup</a>
+</section>
+
 <style>
+	.backup {
+		max-width: 36rem;
+		margin-top: 2.5rem;
+	}
 	form {
 		max-width: 36rem;
 		margin-top: 1.5rem;

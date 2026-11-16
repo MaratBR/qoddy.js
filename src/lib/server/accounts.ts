@@ -66,6 +66,10 @@ export function findUser(db: Db, id: number): User | undefined {
 	return db.prepare(`SELECT ${USER_COLUMNS} FROM user WHERE id = ?`).get(id) as User | undefined;
 }
 
+export function listUsers(db: Db): User[] {
+	return db.prepare(`SELECT ${USER_COLUMNS} FROM user ORDER BY id`).all() as unknown as User[];
+}
+
 export function findUserByEmail(db: Db, email: string): User | undefined {
 	return db
 		.prepare(`SELECT ${USER_COLUMNS} FROM user WHERE email = ?`)

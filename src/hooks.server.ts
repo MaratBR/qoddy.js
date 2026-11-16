@@ -1,6 +1,7 @@
 import type { Handle } from '@sveltejs/kit/hooks';
 import { db } from '#lib/server/db.ts';
 import { sessionUser } from '#lib/server/accounts.ts';
+import { getSettings } from '#lib/server/settings.ts';
 import { clearSessionCookie, SESSION_COOKIE, setSessionCookie } from '#lib/server/http.ts';
 
 export const handle: Handle = async ({ event, resolve }) => {
@@ -31,5 +32,8 @@ export const handle: Handle = async ({ event, resolve }) => {
 	response.headers.set('x-content-type-options', 'nosniff');
 	response.headers.set('referrer-policy', 'strict-origin-when-cross-origin');
 	response.headers.set('x-frame-options', 'DENY');
+	// A header rather than a robots.txt rule: crawlers must be let in to see it,
+	// and it covers every page without the client-rendered app's help.
+	if (getSettings(db()).hide_from_search) response.headers.set('x-robots-tag', 'noindex, nofollow');
 	return response;
 };
