@@ -6,6 +6,7 @@
 	import Thought from '#lib/components/Thought.svelte';
 	import Notes from '#lib/components/Notes.svelte';
 	import KeepButton from '#lib/components/KeepButton.svelte';
+	import ShareImageButton from '#lib/components/ShareImageButton.svelte';
 	import Unlock from '#lib/components/Unlock.svelte';
 	import Icon from '#lib/components/Icon.svelte';
 
@@ -50,6 +51,7 @@
 							><Icon name="edit" /></a
 						>
 					{/if}
+					<ShareImageButton {thought} />
 				{/snippet}
 			</Thought>
 			<p class="from">

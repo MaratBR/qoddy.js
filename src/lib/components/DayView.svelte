@@ -12,6 +12,7 @@
 	import Notes from './Notes.svelte';
 	import Unlock from './Unlock.svelte';
 	import KeepButton from './KeepButton.svelte';
+	import ShareImageButton from './ShareImageButton.svelte';
 	import Icon from './Icon.svelte';
 
 	let { slug }: { slug: string } = $props();
@@ -151,6 +152,7 @@
 				<a class="icon" href="/t/{thought.id}" aria-label={t.day.permalink} title={t.day.permalink}
 					><Icon name="link" /></a
 				>
+				<ShareImageButton {thought} />
 				<a
 					class="icon"
 					href="/c/{slug}/all"
