@@ -13,6 +13,13 @@
 
 	let { children }: LayoutProps = $props();
 	let menu: HTMLDialogElement | undefined = $state();
+	/** The collection the site puts on the home page, which a reader may swap for their own thoughts. */
+	const siteHome = $derived(library.collections.find((c) => c.id === library.settings.home));
+	/** The bar's height, as `--bar`: a page's first screen is the window below it. */
+	let barHeight = $state(0);
+	$effect(() => {
+		document.documentElement.style.setProperty('--bar', `${barHeight}px`);
+	});
 
 	onMount(() => {
 		void library.init();
@@ -79,7 +86,7 @@
 	{/if}
 </svelte:head>
 
-<header class="bar">
+<header class="bar" bind:offsetHeight={barHeight}>
 	<a class="name" href="/">{library.settings.site_name}</a>
 	{#if !library.online}<span class="offline">{t.bar.offline}</span>{/if}
 	<nav>
@@ -113,7 +120,7 @@
 		<section>
 			<h2 class="label">{t.menu.read}</h2>
 			<ul class="group">
-				{#if library.settings.home !== null}
+				{#if library.homeId !== null}
 					<li>
 						<a href="/" aria-current={current('/')}>
 							<span class="title">{t.menu.today}</span>
@@ -139,6 +146,22 @@
 				</li>
 			</ul>
 		</section>
+
+		{#if siteHome}
+			<section>
+				<h2 class="label">{t.menu.home}</h2>
+				<div class="segmented home" role="radiogroup" aria-label={t.menu.home}>
+					{#each [false, true] as value (value)}
+						<button
+							role="radio"
+							aria-checked={library.homeMine === value}
+							onclick={() => library.setHomeMine(value)}
+							>{value ? t.common.yourThoughts : siteHome.name}</button
+						>
+					{/each}
+				</div>
+			</section>
+		{/if}
 
 		<section>
 			<h2 class="label">{t.menu.theme}</h2>
@@ -499,6 +522,9 @@
 		font-family: 'Bricolage Grotesque Variable', sans-serif;
 		font-weight: 700;
 		color: #2c47d0;
+	}
+	.home {
+		display: flex;
 	}
 	.modes {
 		display: flex;

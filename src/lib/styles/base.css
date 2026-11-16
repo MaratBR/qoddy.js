@@ -25,7 +25,13 @@ html {
 	hanging-punctuation: first;
 	caret-color: var(--accent);
 	scrollbar-color: color-mix(in oklab, var(--muted) 45%, transparent) transparent;
+	/* Room for a classic scrollbar always, so a page that grows one (a thought
+	   with notes below it) is laid out the same as one that does not. */
+	scrollbar-gutter: stable;
 	transition: background-color 0.4s ease;
+	/* The sticky bar's height (set by the app layout): what scrolls to the top
+	   of the window lands below it. */
+	scroll-padding-top: var(--bar, 0px);
 }
 
 body {
@@ -462,6 +468,13 @@ input[type='color'] {
 	font-size: calc(clamp(1.45rem, 1rem + 1.7vw, 2.4rem) * var(--fit, 1));
 	max-width: 24em;
 	line-height: calc(var(--thought-leading) + 0.12);
+}
+
+/* A page's first screen: the window below the bar. A page that goes on below
+   it (a thought's notes) snaps back to it. */
+.screen {
+	min-height: calc(100dvh - var(--bar, 0px));
+	scroll-snap-align: start;
 }
 
 /* --- Notes (rendered Markdown) ----------------------------------------------- */

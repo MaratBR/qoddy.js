@@ -29,6 +29,7 @@ export const ru: Messages = {
 		close: 'Закрыть',
 		read: 'Читать',
 		today: 'Сегодня',
+		home: 'Главная страница',
 		theme: 'Тема',
 		lightOrDark: 'Светлая или тёмная',
 		modes: { system: 'Как в системе', light: 'Светлая', dark: 'Тёмная' },
@@ -70,12 +71,11 @@ export const ru: Messages = {
 		keepHint:
 			'Или сохраняйте мысли, которые встречаете: закладка под любой из них добавит её сюда.',
 		permalink: 'Постоянная ссылка',
-		random: 'Другая ваша мысль'
+		random: 'Другая мысль'
 	},
 
 	thought: {
 		about: 'Об этой мысли',
-		hideNotes: 'Скрыть заметки',
 		keep: 'Сохранить',
 		kept: 'Сохранено в ваших мыслях',
 		couldNotKeep: 'Не удалось сохранить.',

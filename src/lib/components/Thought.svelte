@@ -1,9 +1,9 @@
 <script lang="ts">
 	// A thought set as the page: optional date line (with the collection it comes
-	// from, when it is someone else's), the text, its attribution, and the notes
-	// behind a disclosure. Applies the thought's own look.
+	// from, when it is someone else's), the text and its attribution. Applies the
+	// thought's own look. The page shows its notes (Notes.svelte) below, and
+	// `onnotes` takes the reader there.
 	import type { Snippet } from 'svelte';
-	import { renderMarkdown } from '#lib/markdown.ts';
 	import { sizeClass, type ThoughtFields } from '#lib/thought.ts';
 	import { useLook } from '#lib/client/look.svelte.ts';
 	import { t } from '#lib/client/i18n.svelte.ts';
@@ -13,40 +13,43 @@
 		thought,
 		dateline,
 		source,
-		actions
+		actions,
+		onnotes
 	}: {
 		thought: ThoughtFields & { id: string };
 		dateline?: string;
 		source?: string;
 		actions?: Snippet;
+		onnotes?: () => void;
 	} = $props();
 
-	let open = $state(false);
 	useLook(() => thought);
 
 	// Quotation marks for attributed thoughts; your own unattributed ones stand bare.
 	const quoted = $derived(Boolean(thought.author));
-	const notes = $derived(thought.notes ? renderMarkdown(thought.notes) : null);
 
 	// The page is the thought: a long one on a small window is set smaller
-	// (down to FLOOR of its size) rather than scroll. Open notes may scroll.
+	// (down to FLOOR of its size) rather than outgrow the page's first screen.
 	const FLOOR = 0.55;
 	let article: HTMLElement | undefined = $state();
 
 	function fit() {
-		if (!article || open) return;
+		const screen = article?.closest<HTMLElement>('.screen');
+		if (!article || !screen) return;
 		const root = document.documentElement;
-		const body = document.body;
-		// The body is at least the window tall (base.css); taller, and the page scrolls.
-		// Exact heights, as scrollHeight rounds a fraction of a pixel away; the
-		// computed min-height is itself rounded to thousandths.
-		const viewport = parseFloat(getComputedStyle(body).minHeight) + 0.01;
+		// The screen is at least the window below the bar tall (base.css); taller,
+		// and the thought does not fit. Exact heights, as scrollHeight rounds a
+		// fraction of a pixel away; the computed min-height is itself rounded.
+		const limit = parseFloat(getComputedStyle(screen).minHeight) + 0.01;
 		const fits = (scale: number) => {
 			article!.style.setProperty('--fit', String(scale));
-			return body.getBoundingClientRect().height <= viewport;
+			return screen.getBoundingClientRect().height <= limit;
 		};
-		// Measure without a scrollbar: where one takes width, it would add lines.
-		root.style.overflow = 'hidden';
+		// Measure without a scrollbar where one takes width (it would add lines),
+		// unless the page goes on below the screen and scrolls anyway.
+		const scrolls =
+			document.body.getBoundingClientRect().bottom - screen.getBoundingClientRect().bottom > 1;
+		if (!scrolls) root.style.overflow = 'hidden';
 		try {
 			if (fits(1)) return;
 			// Smaller cannot help when even the floor scrolls: keep the full size.
@@ -64,7 +67,7 @@
 	}
 
 	$effect(() => {
-		void [thought.text, thought.author, thought.source, dateline, source];
+		void [thought.text, thought.author, thought.source, thought.notes, dateline, source];
 		fit();
 	});
 	$effect(() => {
@@ -100,22 +103,18 @@
 		</p>
 	{/if}
 
-	<div class="actions">
-		{#if notes}
-			<button
-				class="icon"
-				aria-expanded={open}
-				aria-label={t.thought.about}
-				title={open ? t.thought.hideNotes : t.thought.about}
-				onclick={() => (open = !open)}><Icon name="notes" /></button
-			>
-		{/if}
-		{@render actions?.()}
-	</div>
-
-	{#if notes && open}
-		<!-- renderMarkdown escapes all input before adding its own markup. -->
-		<div class="prose notes" lang={thought.lang}>{@html notes}</div>
+	{#if actions || (thought.notes && onnotes)}
+		<div class="actions">
+			{@render actions?.()}
+			{#if thought.notes && onnotes}
+				<button
+					class="icon down"
+					onclick={onnotes}
+					aria-label={t.thought.about}
+					title={t.thought.about}><Icon name="down" /></button
+				>
+			{/if}
+		</div>
 	{/if}
 </article>
 
@@ -193,16 +192,10 @@
 		gap: 0.5rem;
 		margin-top: 1.25rem;
 	}
-	.notes {
-		margin-top: 1rem;
-		padding-top: 1rem;
-		border-top: 1px solid var(--rule);
-		animation: unfold 0.35s var(--ease);
-	}
-	@keyframes unfold {
-		from {
-			opacity: 0;
-			transform: translateY(-0.25rem);
+	/* On touch, the notes are a scroll away (Notes.svelte hints at them). */
+	@media (any-pointer: coarse) {
+		button.down {
+			display: none;
 		}
 	}
 	@media (max-width: 40rem) {
@@ -224,9 +217,6 @@
 		}
 		.attribution {
 			text-wrap: balance;
-		}
-		.notes {
-			text-align: start;
 		}
 	}
 </style>

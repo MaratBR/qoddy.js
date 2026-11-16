@@ -11,7 +11,7 @@
 // Conflicts on an item: the newest `updatedAt` (device clock) wins. A push the
 // server refuses as older comes back in the response with the server's copy.
 
-import { currentRev, Invalid, nextRev, transaction, type Db } from './db.ts';
+import { currentRev, databaseId, Invalid, nextRev, transaction, type Db } from './db.ts';
 import { getSettings } from './settings.ts';
 import { findUser, setLocale, setTheme, type User } from './accounts.ts';
 import { isId } from '../thought.ts';
@@ -77,7 +77,11 @@ export function parseSyncRequest(body: unknown): SyncRequest {
 	if (typeof input !== 'object' || input === null) throw new Invalid('Malformed request.');
 	const cursor = (value: unknown) =>
 		Number.isSafeInteger(value) && (value as number) >= 0 ? (value as number) : 0;
-	const request: SyncRequest = { since: cursor(input.since), mineSince: cursor(input.mineSince) };
+	const request: SyncRequest = {
+		db: typeof input.db === 'string' ? input.db : '',
+		since: cursor(input.since),
+		mineSince: cursor(input.mineSince)
+	};
 	if (input.theme === null || typeof input.theme === 'string') request.theme = input.theme;
 	if (input.locale === null || typeof input.locale === 'string') request.locale = input.locale;
 	const mine = input.mine as Record<string, unknown> | undefined;
@@ -229,9 +233,11 @@ function pull(
 	pushed: ReturnType<typeof push>
 ): SyncResponse {
 	const rev = currentRev(db);
-	const reset = request.since > rev || request.mineSince > rev;
+	const id = databaseId(db);
+	const elsewhere = request.db !== id && (request.since > 0 || request.mineSince > 0);
+	const reset = elsewhere || request.since > rev || request.mineSince > rev;
 	const since = reset ? 0 : request.since;
-	const response: SyncResponse = { rev, collections: [], thoughts: [], me: null };
+	const response: SyncResponse = { db: id, rev, collections: [], thoughts: [], me: null };
 	if (reset) response.reset = true;
 
 	const settings = getSettings(db);

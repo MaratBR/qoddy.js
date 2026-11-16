@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { open, Invalid, type Db } from './db.ts';
+import { currentRev, databaseId, open, Invalid, type Db } from './db.ts';
 import {
 	authenticate,
 	createSession,
@@ -171,27 +171,42 @@ describe('sync', () => {
 		deleted: false,
 		...extra
 	});
+	const dbId = () => databaseId(db);
 
 	it('pulls public changes since a cursor, with tombstones', () => {
-		const first = sync(db, null, { since: 0, mineSince: 0 });
+		const first = sync(db, null, { db: dbId(), since: 0, mineSince: 0 });
 		expect(first.settings).toBeDefined();
 		expect(first.collections.map((c) => c.slug)).toEqual(['default']);
 		expect(first.me).toBeNull();
 		expect(first.mine).toBeUndefined();
 
 		const t = addThought(db, defaultId(), { text: 'New' });
-		const second = sync(db, null, { since: first.rev, mineSince: 0 });
+		const second = sync(db, null, { db: dbId(), since: first.rev, mineSince: 0 });
 		expect(second.settings).toBeUndefined();
 		expect(second.thoughts.map((x) => x.id)).toEqual([t.id]);
 
 		deleteThought(db, t.id);
-		const third = sync(db, null, { since: second.rev, mineSince: 0 });
+		const third = sync(db, null, { db: dbId(), since: second.rev, mineSince: 0 });
 		expect(third.thoughts).toMatchObject([{ id: t.id, deleted: true, text: '' }]);
-		expect(sync(db, null, { since: third.rev + 100, mineSince: 0 }).reset).toBe(true);
+		expect(sync(db, null, { db: dbId(), since: third.rev + 100, mineSince: 0 }).reset).toBe(true);
+	});
+
+	it('starts over on cursors from another database, even at the same revision', () => {
+		const other = open(':memory:');
+		const theirs = sync(other, null, { db: '', since: 0, mineSince: 0 });
+		expect(theirs.db).not.toBe(dbId());
+		addThought(db, defaultId(), { text: 'Only here' });
+		const pulled = sync(db, null, { db: theirs.db, since: currentRev(db), mineSince: 0 });
+		expect(pulled.reset).toBe(true);
+		expect(pulled.db).toBe(dbId());
+		expect(pulled.thoughts.map((x) => x.text)).toEqual(['Only here']);
+		// A first sync has nothing to start over.
+		expect(sync(db, null, { db: '', since: 0, mineSince: 0 }).reset).toBeUndefined();
 	});
 
 	it('pushes personal items; newest edit wins', () => {
 		const pushed = sync(db, user, {
+			db: dbId(),
 			since: 0,
 			mineSince: 0,
 			mine: { items: [item('aaaaaa1', 10)] }
@@ -199,6 +214,7 @@ describe('sync', () => {
 		expect(pushed.mine?.items.map((i) => i.id)).toEqual(['aaaaaa1']);
 
 		const stale = sync(db, user, {
+			db: dbId(),
 			since: pushed.rev,
 			mineSince: pushed.rev,
 			mine: { items: [item('aaaaaa1', 5, { data: '{"text":"old"}' })] }
@@ -206,6 +222,7 @@ describe('sync', () => {
 		expect(stale.mine?.items).toMatchObject([{ id: 'aaaaaa1', updatedAt: 10 }]);
 
 		const deleted = sync(db, user, {
+			db: dbId(),
 			since: stale.rev,
 			mineSince: stale.rev,
 			mine: { items: [item('aaaaaa1', 20, { deleted: true })] }
@@ -216,7 +233,12 @@ describe('sync', () => {
 	});
 
 	it('locks atomically and refuses items under a stale key', () => {
-		const start = sync(db, user, { since: 0, mineSince: 0, mine: { items: [item('aaaaaa1', 1)] } });
+		const start = sync(db, user, {
+			db: dbId(),
+			since: 0,
+			mineSince: 0,
+			mine: { items: [item('aaaaaa1', 1)] }
+		});
 		const lock: Lock = {
 			key: 'keykeykey1',
 			salt: 'c2FsdA==',
@@ -226,6 +248,7 @@ describe('sync', () => {
 
 		// A lock change must re-encrypt every live item.
 		const partial = sync(db, user, {
+			db: dbId(),
 			since: start.rev,
 			mineSince: start.rev,
 			mine: { lock: { base: start.mine!.lockRev, value: lock }, items: [] }
@@ -233,6 +256,7 @@ describe('sync', () => {
 		expect(partial.mine?.lock).toBeNull();
 
 		const locked = sync(db, user, {
+			db: dbId(),
 			since: start.rev,
 			mineSince: start.rev,
 			mine: {
@@ -244,9 +268,15 @@ describe('sync', () => {
 		expect(locked.mine?.rejected).toEqual([]);
 
 		// Another device still on plaintext, and one racing with an old base.
-		const late = sync(db, user, { since: 0, mineSince: 0, mine: { items: [item('bbbbbb2', 5)] } });
+		const late = sync(db, user, {
+			db: dbId(),
+			since: 0,
+			mineSince: 0,
+			mine: { items: [item('bbbbbb2', 5)] }
+		});
 		expect(late.mine?.rejected).toEqual([{ id: 'bbbbbb2', reason: 'key' }]);
 		const race = sync(db, user, {
+			db: dbId(),
 			since: 0,
 			mineSince: 0,
 			mine: { lock: { base: start.mine!.lockRev, value: null }, items: [item('aaaaaa1', 2)] }
@@ -256,10 +286,14 @@ describe('sync', () => {
 	});
 
 	it('saves the reader’s language; unknown ones clear it', () => {
-		expect(sync(db, user, { since: 0, mineSince: 0, locale: 'ru' }).me?.locale).toBe('ru');
-		expect(sync(db, user, { since: 0, mineSince: 0 }).me?.locale).toBe('ru');
-		expect(sync(db, user, { since: 0, mineSince: 0, locale: 'xx' }).me?.locale).toBeNull();
-		expect(parseSyncRequest({ locale: 5 })).toEqual({ since: 0, mineSince: 0 });
+		expect(sync(db, user, { db: dbId(), since: 0, mineSince: 0, locale: 'ru' }).me?.locale).toBe(
+			'ru'
+		);
+		expect(sync(db, user, { db: dbId(), since: 0, mineSince: 0 }).me?.locale).toBe('ru');
+		expect(
+			sync(db, user, { db: dbId(), since: 0, mineSince: 0, locale: 'xx' }).me?.locale
+		).toBeNull();
+		expect(parseSyncRequest({ locale: 5 })).toEqual({ db: '', since: 0, mineSince: 0 });
 	});
 
 	it('rejects malformed requests', () => {
@@ -269,6 +303,10 @@ describe('sync', () => {
 		expect(() =>
 			parseSyncRequest({ mine: { items: [], lock: { base: 0, value: { key: 'k' } } } })
 		).toThrow(/lock/);
-		expect(parseSyncRequest({ since: -5, mineSince: 'x' })).toEqual({ since: 0, mineSince: 0 });
+		expect(parseSyncRequest({ since: -5, mineSince: 'x' })).toEqual({
+			db: '',
+			since: 0,
+			mineSince: 0
+		});
 	});
 });

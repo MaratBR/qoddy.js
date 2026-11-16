@@ -101,6 +101,12 @@ const MIGRATIONS: string[] = [
 	ALTER TABLE settings DROP COLUMN daily;
 	UPDATE revision SET value = value + 1;
 	UPDATE settings SET rev = (SELECT value FROM revision);
+	`,
+	// A random id per database: a device's cursors mean nothing in another one,
+	// even one rebuilt to the same revision (see `pull` in `sync.ts`).
+	`
+	ALTER TABLE revision ADD COLUMN db TEXT NOT NULL DEFAULT '';
+	UPDATE revision SET db = lower(hex(randomblob(8)));
 	`
 ];
 
@@ -158,6 +164,11 @@ export function nextRev(db: Db): number {
 /** The highest revision written so far. */
 export function currentRev(db: Db): number {
 	return (db.prepare('SELECT value FROM revision WHERE id = 1').get() as { value: number }).value;
+}
+
+/** This database's id, which the revisions belong to. */
+export function databaseId(db: Db): string {
+	return (db.prepare('SELECT db FROM revision WHERE id = 1').get() as { db: string }).db;
 }
 
 /** A user-facing failure: bad input or a rule the action breaks. */

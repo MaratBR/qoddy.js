@@ -77,6 +77,8 @@ export interface Me {
 }
 
 export interface SyncRequest {
+	/** The database the cursors below belong to (`SyncResponse.db`); '' before the first sync. */
+	db: string;
 	/** Highest `rev` already applied to this device's public data. */
 	since: number;
 	/** Same, for the personal collection (reset when the account changes). */
@@ -95,8 +97,10 @@ export interface SyncRequest {
 export type RejectReason = 'key' | 'lock' | 'limit';
 
 export interface SyncResponse {
+	/** The database's id: cursors from another one (a rebuilt database) start over. */
+	db: string;
 	rev: number;
-	/** The device's cursor is ahead of the server (restored database): start over. */
+	/** The device's cursors are from another database, or ahead of this one (restored): start over. */
 	reset?: true;
 	settings?: PublicSettings;
 	collections: (PublicCollection & { deleted: boolean })[];

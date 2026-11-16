@@ -22,6 +22,7 @@ export const en = {
 		close: 'Close',
 		read: 'Read',
 		today: 'Today',
+		home: 'Home page',
 		theme: 'Theme',
 		lightOrDark: 'Light or dark',
 		modes: { system: 'System', light: 'Light', dark: 'Dark' },
@@ -62,12 +63,11 @@ export const en = {
 			'Write down a thought you want to come back to. Each day brings one of yours back, the way this page shows one from the collection.',
 		keepHint: 'Or keep thoughts you meet: the bookmark under any of them adds it here.',
 		permalink: 'Permalink',
-		random: 'Another of your thoughts'
+		random: 'Another thought'
 	},
 
 	thought: {
 		about: 'About this thought',
-		hideNotes: 'Hide the notes',
 		keep: 'Keep',
 		kept: 'Kept in your thoughts',
 		couldNotKeep: 'Could not keep it.',

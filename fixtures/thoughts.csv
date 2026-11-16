@@ -1,8 +1,34 @@
 text,author,source,notes,lang,theme,color,font
 The unexamined life is not worth living.,Socrates,Apology,"Said at his trial, when exile was offered in place of death. Socrates chose death over a life without **questioning** — for him, thinking about how to live *was* living.",en,morning,,
 Brevity is the soul of wit.,William Shakespeare,Hamlet,"Spoken by Polonius, one of the most long-winded characters in the play. The irony is the point.",en,,#5b3a8c,
-"It is a truth universally acknowledged, that a single man in possession of a good fortune, must be in want of a wife.",Jane Austen,Pride and Prejudice,,en,morning,#7a4a2a,Playfair Display
-"Все счастливые семьи похожи друг на друга, каждая несчастливая семья несчастлива по-своему.",Лев Толстой,Анна Каренина,,ru,morning,#7a1f2b,PT Serif
+"It is a truth universally acknowledged, that a single man in possession of a good fortune, must be in want of a wife.",Jane Austen,Pride and Prejudice,"The first sentence of *Pride and Prejudice* (1813), and one of the most quoted openings in English. It reads as a solemn general truth, then turns on its last words.
+
+### The irony
+
+The sentence claims that a rich single man must want a wife. The novel shows the opposite: it is the families of the neighbourhood who want the rich man, for one of their daughters. The ""truth"" is what the Bennets' world tells itself.
+
+> However little known the feelings or views of such a man may be on his first entering a neighbourhood, this truth is so well fixed in the minds of the surrounding families, that he is considered as the rightful property of some one or other of their daughters.
+
+### Why it matters to the story
+
+- The Bennets have five daughters and no son, so the family estate will pass to a cousin.
+- Marriage is the only security open to the daughters, which makes the joke a serious one.
+- Elizabeth refuses two proposals that would have solved the problem, and the book takes her side.
+
+### Reading it again
+
+Austen trusts the reader to hear two voices at once: the narrator's and the town's. Much of the novel's pleasure is in telling them apart. The whole text is free to read at [Project Gutenberg](https://www.gutenberg.org/ebooks/1342).",en,morning,#7a4a2a,Playfair Display
+"Все счастливые семьи похожи друг на друга, каждая несчастливая семья несчастлива по-своему.",Лев Толстой,Анна Каренина,"Первая фраза «Анны Карениной» (1878). Её часто цитируют как общий закон, хотя сам роман его проверяет и местами опровергает.
+
+### О чём это
+
+Счастье здесь описано как нечто общее и почти безличное, а несчастье — как то, что у каждой семьи своё. Сразу за этой фразой идёт: «Всё смешалось в доме Облонских», и роман начинается с конкретной беды.
+
+- Семья Облонских: измена, которую прощают ради привычного порядка.
+- Семья Карениных: брак, который рушится.
+- Левин и Кити: долгий путь к счастью, которое оказывается вовсе не одинаковым.
+
+Учёные даже назвали в честь этой фразы «принцип Анны Карениной»: успеху нужно, чтобы сошлось многое, а для неудачи достаточно одного.",ru,morning,#7a1f2b,PT Serif
 "Я помню чудное мгновенье: передо мной явилась ты",Александр Пушкин,К ***,,ru,field,#2e5e8c,
 学而时习之，不亦说乎？,孔子,论语,"The opening line of the *Analects*: “Is it not a pleasure to learn, and to practise what you have learned?”",zh-Hans,morning,#b3261e,Noto Serif SC
 千里之行，始于足下。,老子,道德经,"A journey of a thousand *li* begins beneath one's feet.
@@ -12,7 +38,9 @@ Brevity is the soul of wit.,William Shakespeare,Hamlet,"Spoken by Polonius, one 
 古池や蛙飛び込む水の音,松尾芭蕉,,"An old pond — a frog jumps in — the sound of water. See [the poem's history](https://en.wikipedia.org/wiki/Old_pond).",ja,morning,#3d5a2a,Noto Serif JP
 Γνῶθι σεαυτόν.,Delphic maxim,,"“Know thyself”, inscribed in the forecourt of the Temple of Apollo at Delphi.",grc,morning,,GFS Didot
 الصبر مفتاح الفرج,Arabic proverb,,Patience is the key to relief.,ar,field,#9a6b1f,Amiri
-"Carpe diem, quam minimum credula postero.",Horace,Odes,,la,vesper,,
+"Carpe diem, quam minimum credula postero.",Horace,Odes,"From Horace, *Odes* 1.11, written around 23 BC. The poem is addressed to a woman named Leuconoe, who is trying to learn the future from Babylonian astrology.
+
+Horace tells her to stop: no one knows how many winters the gods will give. *Carpe* is a gardener's word, ""pluck"" rather than ""seize"", as one picks fruit when it is ripe. Trust tomorrow as little as you can.",la,vesper,,
 "Je pense, donc je suis.",René Descartes,Discours de la méthode,,fr,field,#2b5d8a,
 천 리 길도 한 걸음부터,Korean proverb,,,ko,morning,,Nanum Myeongjo
 "Omnia, Lucili, aliena sunt, tempus tantum nostrum est.",Seneca,Epistulae Morales,"Everything else, Lucilius, belongs to others; only time is ours.

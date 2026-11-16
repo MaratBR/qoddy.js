@@ -51,6 +51,8 @@ interface MineRecord extends MineItem {
 }
 
 interface State {
+	/** The database `since` and `mineSince` count in (`SyncResponse.db`). */
+	db: string;
 	since: number;
 	mineSince: number;
 	/** Account the personal records belong to; null while they are local only. */
@@ -74,6 +76,7 @@ const DEFAULT_SETTINGS: PublicSettings = {
 };
 
 const INITIAL: State = {
+	db: '',
 	since: 0,
 	mineSince: 0,
 	mineOwner: null,
@@ -88,6 +91,7 @@ const INITIAL: State = {
 
 const THEME_KEY = 'qoddy.theme';
 const MODE_KEY = 'qoddy.mode';
+const HOME_KEY = 'qoddy.home';
 const SYNC_EVERY = 5 * 60_000;
 
 export type Mode = 'light' | 'dark' | null;
@@ -135,6 +139,8 @@ class Library {
 	/** This device's theme choice (signed out), or the last one seen from the account. */
 	#deviceTheme = $state<string | null>(null);
 	mode = $state<Mode>(null);
+	/** This device puts your own thoughts on the home page, whatever the site's choice. */
+	homeMine = $state(false);
 
 	#records = new Map<string, MineRecord>();
 	#keys = new Map<string, CryptoKey>();
@@ -179,9 +185,13 @@ class Library {
 		return this.collections.find((collection) => collection.slug === slug);
 	}
 
-	/** The home page shows this collection's thought of the day (its id is `settings.home`). */
+	/** The collection whose thought of the day is the home page; null for your own thoughts. */
+	get homeId(): number | null {
+		return this.homeMine ? null : this.#state.settings.home;
+	}
+
 	isHome(collection: PublicCollection): boolean {
-		return collection.id === this.#state.settings.home;
+		return collection.id === this.homeId;
 	}
 
 	/** A collection's thoughts in rotation order. */
@@ -213,6 +223,7 @@ class Library {
 		this.#deviceTheme = stored(THEME_KEY);
 		const mode = stored(MODE_KEY);
 		this.mode = mode === 'light' || mode === 'dark' ? mode : null;
+		this.homeMine = stored(HOME_KEY) === 'mine';
 		try {
 			const [meta, collections, thoughts, records, keys] = await Promise.all([
 				idb.entries<unknown>('meta'),
@@ -291,7 +302,11 @@ class Library {
 			return;
 		}
 		const state = this.#state;
-		const request: SyncRequest = { since: state.since, mineSince: state.mineSince };
+		const request: SyncRequest = {
+			db: state.db,
+			since: state.since,
+			mineSince: state.mineSince
+		};
 		if (state.themeDirty && state.me) request.theme = state.me.theme;
 		if (state.localeDirty && state.me) request.locale = state.me.locale;
 		// Personal changes go up only to the account they belong to.
@@ -338,7 +353,7 @@ class Library {
 		const changes: idb.Change[] = [];
 
 		if (response.reset) {
-			// The server is behind this device (a restored database): start over.
+			// Another database, or one behind this device (restored): start over.
 			changes.push({ store: 'thoughts', clear: true }, { store: 'collections', clear: true });
 			this.thoughts = new Map();
 			this.collections = [];
@@ -374,6 +389,7 @@ class Library {
 			}
 			this.thoughts = thoughts;
 		}
+		state.db = response.db;
 		state.since = response.rev;
 
 		// Accounts: adopt local-only thoughts, or drop another account's.
@@ -665,6 +681,7 @@ class Library {
 			});
 		}
 		const response = await this.#post({
+			db: this.#state.db,
 			since: this.#state.since,
 			mineSince: this.#state.mineSince,
 			mine: { lock: { base: this.#state.lockRev, value: next?.lock ?? null }, items }
@@ -677,7 +694,7 @@ class Library {
 		}
 		await this.#apply(
 			response,
-			{ since: 0, mineSince: this.#state.mineSince },
+			{ db: this.#state.db, since: 0, mineSince: this.#state.mineSince },
 			refused ? [] : items
 		);
 		if (refused) {
@@ -701,6 +718,12 @@ class Library {
 	setMode(mode: Mode): void {
 		this.mode = mode;
 		store(MODE_KEY, mode);
+	}
+
+	/** Your own thoughts on the home page (on this device), or the site's collection. */
+	setHomeMine(mine: boolean): void {
+		this.homeMine = mine;
+		store(HOME_KEY, mine ? 'mine' : null);
 	}
 
 	/** Shows the app in another language; signed in, the account remembers it. */
