@@ -1,8 +1,27 @@
 import { defineConfig } from 'vitest/config';
 import adapter from '@sveltejs/adapter-node';
 import { sveltekit } from '@sveltejs/kit/vite';
+import { execSync } from 'node:child_process';
+
+/** The commit being built: QODDY_COMMIT (Docker builds have no .git), else git's, else ''. */
+function commit(): string {
+	if (process.env.QODDY_COMMIT !== undefined) return process.env.QODDY_COMMIT;
+	try {
+		const hash = execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] });
+		const dirty = execSync('git status --porcelain --untracked-files=no', {
+			stdio: ['ignore', 'pipe', 'ignore']
+		});
+		return hash.toString().trim() + (dirty.length ? '-dirty' : '');
+	} catch {
+		return '';
+	}
+}
 
 export default defineConfig({
+	// Shown on Account → Stats for nerds, for both the app and the server it talks to.
+	define: {
+		__QODDY_BUILD__: JSON.stringify({ built: new Date().toISOString(), commit: commit() })
+	},
 	plugins: [
 		sveltekit({
 			compilerOptions: {

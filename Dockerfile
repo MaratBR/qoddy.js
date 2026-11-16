@@ -11,6 +11,9 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml .npmrc ./
 RUN pnpm install --frozen-lockfile
 COPY . .
+# The commit shown on Stats for nerds (.git is not sent to the build).
+ARG QODDY_COMMIT=
+ENV QODDY_COMMIT=$QODDY_COMMIT
 RUN pnpm build && pnpm prune --prod --ignore-scripts
 
 FROM node:24-slim

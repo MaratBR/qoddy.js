@@ -65,6 +65,9 @@ fi
 case "$BUILD" in local | remote) ;; *) die "--build must be local or remote" ;; esac
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# Shown on the app's Stats for nerds page.
+COMMIT="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || true)"
+[ -z "$COMMIT" ] || [ -z "$(git -C "$ROOT" status --porcelain --untracked-files=no)" ] || COMMIT="$COMMIT-dirty"
 
 # One SSH connection for every step, so a password or key prompt comes up once.
 CONTROL="$(mktemp -d)"
@@ -87,7 +90,7 @@ esac
 if [ "$BUILD" = local ]; then
 	command -v docker >/dev/null 2>&1 || die "Docker is not installed here"
 	echo "==> Building $IMAGE here for $PLATFORM"
-	docker build --platform "$PLATFORM" -t "$IMAGE" "$ROOT"
+	docker build --platform "$PLATFORM" --build-arg "QODDY_COMMIT=$COMMIT" -t "$IMAGE" "$ROOT"
 	echo "==> Sending the image to $HOST"
 	docker save "$IMAGE" | gzip | "${SSH[@]}" 'gunzip | docker load'
 else
@@ -99,7 +102,7 @@ else
 		--exclude=./.env --exclude='./.env.*' \
 		. | "${SSH[@]}" "rm -rf ~/$DIR/src && mkdir ~/$DIR/src && tar -xzf - -C ~/$DIR/src"
 	echo "==> Building $IMAGE on $HOST"
-	"${SSH[@]}" "docker build -t $IMAGE ~/$DIR/src"
+	"${SSH[@]}" "docker build --build-arg QODDY_COMMIT=$(printf '%q' "$COMMIT") -t $IMAGE ~/$DIR/src"
 fi
 
 echo "==> Starting $NAME"
