@@ -52,6 +52,15 @@
 		else root.style.removeProperty('--thought-font');
 	});
 
+	// Theme changes fade (base.css), but only once the first frames are drawn
+	// in the reader's theme: fading in from the browser's blank page flashes.
+	$effect(() => {
+		if (!library.ready) return;
+		requestAnimationFrame(() =>
+			requestAnimationFrame(() => (document.documentElement.dataset.settled = ''))
+		);
+	});
+
 	const chrome = $derived.by(() => {
 		if (!theme.dark || library.mode === 'light') return theme.light;
 		if (library.mode === 'dark') return theme.dark;

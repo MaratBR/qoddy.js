@@ -28,10 +28,15 @@ html {
 	/* Room for a classic scrollbar always, so a page that grows one (a thought
 	   with notes below it) is laid out the same as one that does not. */
 	scrollbar-gutter: stable;
-	transition: background-color 0.4s ease;
 	/* The sticky bar's height (set by the app layout): what scrolls to the top
 	   of the window lands below it. */
 	scroll-padding-top: var(--bar, 0px);
+}
+
+/* A change of theme fades; the first paint does not (the app sets
+   data-settled once it has drawn in the reader's theme). */
+html[data-settled] {
+	transition: background-color 0.4s ease;
 }
 
 body {

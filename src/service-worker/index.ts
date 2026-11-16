@@ -27,7 +27,10 @@ const SHELL_PATH: string = resolve('/(app)');
 /** The base path ('' unless the app is mounted under a prefix). */
 const BASE = SHELL_PATH.slice(0, -1);
 const IMMUTABLE = `${BASE}/_app/immutable/`;
-const STATIC = new Set<string>(assets.map((file) => asset(file.path)));
+/** `static/`, less the iOS launch screens: a phone takes its one when the app is installed. */
+const STATIC = new Set<string>(
+	assets.filter((file) => !file.path.startsWith('splash/')).map((file) => asset(file.path))
+);
 const MANIFEST = `${BASE}/manifest.webmanifest`;
 const ONLINE_ONLY = [`${BASE}/api/`, `${BASE}/admin`, `${BASE}/_app/version.json`];
 const FONT_HOSTS = new Set(['fonts.googleapis.com', 'fonts.gstatic.com']);
