@@ -175,6 +175,23 @@ export const ru: Messages = {
 		readersTheme: 'Тема читателя',
 		ownColor: 'Свой цвет',
 		color: 'Цвет',
+		colors: {
+			violet: 'Фиолетовый',
+			blue: 'Синий',
+			teal: 'Бирюзовый',
+			green: 'Зелёный',
+			ochre: 'Охра',
+			terracotta: 'Терракотовый',
+			crimson: 'Малиновый',
+			rose: 'Розовый',
+			slate: 'Сланцевый'
+		},
+		otherColor: 'Другой цвет',
+		saturationBrightness: 'Насыщенность и яркость',
+		saturationBrightnessValue: (saturation, brightness) =>
+			`Насыщенность ${saturation}%, яркость ${brightness}%`,
+		hue: 'Оттенок',
+		hex: 'Код цвета',
 		font: 'Шрифт',
 		fontHint: 'Любое семейство Google Fonts, например Lora',
 		language: 'Язык',

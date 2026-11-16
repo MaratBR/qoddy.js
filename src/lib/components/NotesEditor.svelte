@@ -173,14 +173,20 @@
 		border-top-color: var(--accent);
 	}
 	/* The tools in one recessed track, as a segmented control; a style that is
-	   on stands raised in it. */
+	   on stands raised in it. Notes run to paragraphs, so the track stays in
+	   reach under the app's bar while they scroll by. */
 	.toolbar {
+		position: sticky;
+		top: calc(max(3.5rem, env(safe-area-inset-top) + 3rem) + 0.5rem);
+		z-index: 1;
 		display: inline-flex;
 		flex-wrap: wrap;
 		gap: 2px;
+		margin: 0.75rem 0 1rem;
 		padding: 3px;
 		border-radius: calc(var(--radius) + 5px);
-		background: color-mix(in oklab, var(--ink) 6%, transparent);
+		background: var(--wash);
+		box-shadow: 0 0.4rem 0.8rem -0.6rem color-mix(in oklab, #000 25%, transparent);
 	}
 	.toolbar .icon {
 		width: 2.25rem;

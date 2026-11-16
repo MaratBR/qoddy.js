@@ -7,11 +7,14 @@
 	import { page } from '$app/state';
 	import { library, LibraryError } from '#lib/client/library.svelte.ts';
 	import { useLook } from '#lib/client/look.svelte.ts';
-	import { LIMITS, normalizeColor, sizeClass, validFont } from '#lib/thought.ts';
-	import { THEMES } from '#lib/themes.ts';
+	import { LIMITS, normalizeColor, sizeClass, validFont, validLang } from '#lib/thought.ts';
+	import { findTheme, THEMES } from '#lib/themes.ts';
 	import Unlock from '#lib/components/Unlock.svelte';
 	import NotesEditor from '#lib/components/NotesEditor.svelte';
-	import { t } from '#lib/client/i18n.svelte.ts';
+	import Select from '#lib/components/Select.svelte';
+	import ColorPicker from '#lib/components/ColorPicker.svelte';
+	import Icon from '#lib/components/Icon.svelte';
+	import { i18n, t } from '#lib/client/i18n.svelte.ts';
 
 	const id = page.url.searchParams.get('id');
 	const existing = id ? library.mineById(id) : undefined;
@@ -83,9 +86,37 @@
 		await goto('/c/mine/all');
 	}
 
+	const themeOptions = $derived([
+		{ value: '', label: t.write.readersTheme },
+		...THEMES.map((option) => ({ value: option.id, label: t.themes[option.id] ?? option.name }))
+	]);
+
+	/** The language a tag names, in the reader's language, once it names one. */
+	const languageName = $derived.by(() => {
+		const tag = lang.trim();
+		if (!validLang(tag)) return null;
+		try {
+			const name = new Intl.DisplayNames([i18n.locale], { type: 'language' }).of(tag);
+			return name && name.toLowerCase() !== tag.toLowerCase() ? name : null;
+		} catch {
+			return null;
+		}
+	});
+
 	const fieldError = (field: string) => (error?.field === field ? error.message : null);
 	const INLINE_ERRORS = ['text', 'notes', 'font', 'lang'];
 </script>
+
+<!-- A theme as a dot of its paper (split where it has a dark mode); the reader's own, an empty ring. -->
+{#snippet themeSwatch(value: string)}
+	{@const option = findTheme(value)}
+	<span
+		class={['theme-swatch', { reader: !option }]}
+		style:--light={option?.light}
+		style:--dark={option?.dark ?? option?.light}
+		aria-hidden="true"
+	></span>
+{/snippet}
 
 <svelte:head>
 	<title
@@ -146,21 +177,33 @@
 					<span id="source-hint">{t.write.sourceHint}</span>
 				</p>
 
+				<!-- A dot on a folded section says something is set in it. -->
 				<div class="more">
 					<button
 						type="button"
-						class="link"
+						class="toggle"
 						aria-expanded={notesOpen}
 						aria-controls="notes"
-						onclick={() => (notesOpen = !notesOpen)}>{t.write.notes}</button
+						onclick={() => (notesOpen = !notesOpen)}
 					>
+						{t.write.notes}
+						{#if !notesOpen && notes.trim()}<span class="dot" aria-hidden="true"></span>{/if}
+						<Icon name="chevron" />
+					</button>
 					<button
 						type="button"
-						class="link"
+						class="toggle"
 						aria-expanded={styleOpen}
 						aria-controls="style"
-						onclick={() => (styleOpen = !styleOpen)}>{t.write.style}</button
+						onclick={() => (styleOpen = !styleOpen)}
 					>
+						{t.write.style}
+						{#if !styleOpen && (theme || colored || font.trim() || lang.trim())}<span
+								class="dot"
+								aria-hidden="true"
+							></span>{/if}
+						<Icon name="chevron" />
+					</button>
 				</div>
 
 				<!-- Kept mounted while hidden, so the editor keeps its undo history. -->
@@ -171,30 +214,47 @@
 
 				<section id="style" class="panel" hidden={!styleOpen}>
 					<div class="style">
-						<label class="field">
-							<span>{t.write.theme}</span>
-							<select bind:value={theme}>
-								<option value="">{t.write.readersTheme}</option>
-								{#each THEMES as option (option.id)}
-									<option value={option.id}>{t.themes[option.id] ?? option.name}</option>
-								{/each}
-							</select>
-						</label>
 						<div class="field">
-							<label class="check"
-								><input type="checkbox" bind:checked={colored} /> {t.write.ownColor}</label
-							>
-							{#if colored}<input type="color" bind:value={color} aria-label={t.write.color} />{/if}
+							<span id="theme-label">{t.write.theme}</span>
+							<Select
+								bind:value={theme}
+								options={themeOptions}
+								labelledby="theme-label"
+								item={themeSwatch}
+							/>
 						</div>
+						<div class="field">
+							<span>{t.write.color}</span>
+							<label class="switch-row">
+								{t.write.ownColor}
+								<input type="checkbox" role="switch" bind:checked={colored} />
+							</label>
+						</div>
+						{#if colored}
+							<div class="colors">
+								<ColorPicker bind:value={color} label={t.write.color} />
+							</div>
+						{/if}
 						<label class="field">
 							<span>{t.write.font}</span>
-							<input bind:value={font} placeholder={t.write.fontHint} />
+							<input
+								bind:value={font}
+								placeholder={t.write.fontHint}
+								autocomplete="off"
+								spellcheck="false"
+							/>
 							{#if fieldError('font')}<span class="error">{fieldError('font')}</span>{/if}
 						</label>
 						<label class="field">
 							<span>{t.write.language}</span>
-							<input bind:value={lang} placeholder={t.write.languageHint} />
-							{#if fieldError('lang')}<span class="error">{fieldError('lang')}</span>{/if}
+							<input
+								bind:value={lang}
+								placeholder={t.write.languageHint}
+								autocomplete="off"
+								spellcheck="false"
+							/>
+							{#if fieldError('lang')}<span class="error">{fieldError('lang')}</span>
+							{:else if languageName}<span class="hint">{languageName}</span>{/if}
 						</label>
 					</div>
 				</section>
@@ -336,37 +396,125 @@
 		visibility: visible;
 	}
 
+	/* The folded sections: quiet pills; open, they take the accent and the
+	   chevron turns down toward what they opened. */
 	.more {
 		display: flex;
-		gap: 1.5rem;
-		margin-top: 1rem;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		margin-top: 1.25rem;
 	}
-	.more .link {
-		color: var(--muted);
-		text-decoration: none;
+	.toggle {
+		appearance: none;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		min-height: 2.5rem;
+		padding: 0.35em 0.75em 0.35em 1em;
+		border: 0;
+		border-radius: 999px;
+		background: color-mix(in oklab, var(--ink) 6%, transparent);
+		color: color-mix(in oklab, var(--ink) 78%, var(--paper));
+		font-family: var(--ui-font);
+		font-size: 0.88rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition:
+			background-color 0.2s var(--ease),
+			color 0.2s var(--ease),
+			scale 0.3s var(--ease);
 	}
-	.more .link:hover,
-	.more .link[aria-expanded='true'] {
-		color: var(--ink);
+	@media (hover: hover) {
+		.toggle:hover {
+			color: var(--ink);
+			background: color-mix(in oklab, var(--ink) 10%, transparent);
+		}
 	}
-	.more .link::after {
-		content: '+';
-		margin-inline-start: 0.1em;
+	.toggle:active {
+		scale: 0.96;
+		transition-duration: 0.08s;
 	}
-	.more .link[aria-expanded='true']::after {
-		content: '−';
+	.toggle[aria-expanded='true'] {
+		color: var(--accent);
+		background: color-mix(in oklab, var(--accent) 14%, transparent);
+	}
+	.toggle :global(svg) {
+		width: 1rem;
+		height: 1rem;
+		stroke-width: 2;
+		transition: rotate 0.3s var(--ease);
+	}
+	.toggle[aria-expanded='true'] :global(svg) {
+		rotate: 90deg;
+	}
+	.dot {
+		width: 0.4rem;
+		height: 0.4rem;
+		border-radius: 50%;
+		background: var(--accent);
+	}
+	@media (pointer: coarse) {
+		.toggle {
+			min-height: 2.75rem;
+		}
 	}
 
+	/* A section settles in as it opens. */
 	.panel {
 		max-width: 40rem;
-		margin-top: 0.5rem;
+		margin-top: 1rem;
+		transition:
+			opacity 0.3s var(--ease),
+			translate 0.4s var(--ease);
+		@starting-style {
+			opacity: 0;
+			translate: 0 -0.5rem;
+		}
+	}
+	.panel + .panel:not([hidden]) {
+		margin-top: 2rem;
 	}
 	.style {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
-		gap: 0 1.5rem;
-		padding-top: 1rem;
+		gap: 0 1.25rem;
+		align-items: start;
+		padding-top: 1.25rem;
 		border-top: 1px solid var(--rule);
+	}
+
+	/* The switch on a filled row, the height of the fields beside it. */
+	.switch-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		min-height: 2.75rem;
+		padding: 0.35em 0.5em 0.35em 0.8em;
+		border-radius: calc(var(--radius) + 2px);
+		background: var(--wash);
+		font-family: var(--ui-font);
+		font-size: 0.95rem;
+		line-height: 1.4;
+		cursor: pointer;
+	}
+	.colors {
+		grid-column: 1 / -1;
+		margin: -0.25rem 0 1.5rem;
+	}
+
+	.theme-swatch {
+		flex: none;
+		width: 1.15rem;
+		height: 1.15rem;
+		border-radius: 50%;
+		background: linear-gradient(135deg, var(--light) 50%, var(--dark) 50%);
+		box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--ink) 20%, transparent);
+	}
+	.theme-swatch.reader {
+		background: none;
+		box-shadow: none;
+		border: 1.5px dashed color-mix(in oklab, var(--muted) 80%, transparent);
 	}
 
 	footer {

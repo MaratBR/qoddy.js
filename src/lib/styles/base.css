@@ -377,6 +377,55 @@ input[type='checkbox'] {
 	width: 1.15rem;
 	height: 1.15rem;
 }
+/* A switch: a checkbox with role="switch", drawn as a track with a knob that
+   slides across and fills it with the accent. The knob stretches while held. */
+input[type='checkbox'][role='switch'] {
+	--knob: 1.6rem;
+	appearance: none;
+	flex: none;
+	position: relative;
+	width: 2.75rem;
+	height: var(--knob);
+	margin: 0;
+	border-radius: 999px;
+	background: color-mix(in oklab, var(--ink) 16%, transparent);
+	cursor: pointer;
+	transition: background-color 0.25s var(--ease);
+}
+input[type='checkbox'][role='switch']::before {
+	content: '';
+	position: absolute;
+	top: 2px;
+	inset-inline-start: 2px;
+	width: calc(var(--knob) - 4px);
+	height: calc(var(--knob) - 4px);
+	border-radius: 999px;
+	background: #fff;
+	box-shadow:
+		0 1px 1px color-mix(in oklab, #000 12%, transparent),
+		0 2px 6px -1px color-mix(in oklab, #000 22%, transparent);
+	transition:
+		translate 0.3s var(--ease),
+		width 0.2s var(--ease);
+}
+input[type='checkbox'][role='switch']:checked {
+	background: var(--accent);
+}
+input[type='checkbox'][role='switch']:checked::before {
+	translate: calc(2.75rem - var(--knob)) 0;
+}
+input[type='checkbox'][role='switch']:active::before {
+	width: calc(var(--knob) + 0.15rem);
+}
+input[type='checkbox'][role='switch']:checked:active::before {
+	translate: calc(2.75rem - var(--knob) - 0.15rem - 4px) 0;
+}
+input[type='checkbox'][role='switch']:dir(rtl):checked::before {
+	translate: calc(var(--knob) - 2.75rem) 0;
+}
+input[type='checkbox'][role='switch']:focus-visible {
+	outline-offset: 2px;
+}
 input[type='color'] {
 	width: 3rem;
 	height: 2.75rem;

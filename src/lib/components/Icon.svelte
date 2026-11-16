@@ -18,6 +18,8 @@
 		previous: 'M19.5 12h-15M10.5 6l-6 6 6 6',
 		next: 'M4.5 12h15M13.5 6l6 6-6 6',
 		chevron: 'M9.5 5.5 16 12l-6.5 6.5',
+		updown: 'M8 9.5l4-4 4 4M8 14.5l4 4 4-4',
+		check: 'M5 12.5l4.5 4.5L19 7.5',
 		search: 'M10.5 17.5a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM15.5 15.5l5 5'
 	};
 	export type IconName = keyof typeof paths;

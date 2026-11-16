@@ -165,6 +165,23 @@ export const en = {
 		readersTheme: 'The reader’s own',
 		ownColor: 'A color of its own',
 		color: 'Color',
+		colors: {
+			violet: 'Violet',
+			blue: 'Blue',
+			teal: 'Teal',
+			green: 'Green',
+			ochre: 'Ochre',
+			terracotta: 'Terracotta',
+			crimson: 'Crimson',
+			rose: 'Rose',
+			slate: 'Slate'
+		},
+		otherColor: 'Another color',
+		saturationBrightness: 'Saturation and brightness',
+		saturationBrightnessValue: (saturation: number, brightness: number) =>
+			`Saturation ${saturation}%, brightness ${brightness}%`,
+		hue: 'Hue',
+		hex: 'Hex code',
 		font: 'Font',
 		fontHint: 'Any Google Fonts family, e.g. Lora',
 		language: 'Language',
