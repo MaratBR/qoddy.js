@@ -10,7 +10,8 @@ import {
 	findCollection,
 	importCsv,
 	listCollections,
-	MINE_SLUG
+	MINE_SLUG,
+	setCollectionHidden
 } from '../src/lib/server/collections.ts';
 import { getSettings, setSetting } from '../src/lib/server/settings.ts';
 
@@ -22,6 +23,8 @@ const USAGE = `Usage: pnpm qoddy <command>
   users                                  list accounts
   collections                            list public collections
   add-collection <slug> <name>
+  hide-collection <slug>                 readers' devices drop it and its thoughts
+  show-collection <slug>
   import <file.csv> [--collection <slug>]  into the home page's collection unless given;
                                          columns: text, author, source, notes, lang, theme, color, font
   settings                               show site settings
@@ -76,8 +79,20 @@ async function main(argv: string[]): Promise<void> {
 			for (const u of listUsers(db())) console.log(`${u.email}\t${u.role}\t${u.name}`);
 			break;
 		case 'collections':
-			for (const c of listCollections(db())) console.log(`${c.slug}\t${c.count}\t${c.name}`);
+			for (const c of listCollections(db())) {
+				console.log(`${c.slug}\t${c.count}\t${c.hidden ? 'hidden' : 'shown'}\t${c.name}`);
+			}
 			break;
+		case 'hide-collection':
+		case 'show-collection': {
+			need(1);
+			const collection = findCollection(db(), args[0]);
+			if (!collection) throw new Invalid(`No collection ${args[0]}.`);
+			const hidden = command === 'hide-collection';
+			setCollectionHidden(db(), collection.id, hidden);
+			console.log(`${collection.slug} is now ${hidden ? 'hidden from' : 'shown to'} readers`);
+			break;
+		}
 		case 'add-collection':
 			need(2);
 			console.log(`created /c/${createCollection(db(), { slug: args[0], name: args[1] }).slug}`);

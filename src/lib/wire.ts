@@ -13,7 +13,9 @@ export type ErrorCode =
 	| 'name_invalid'
 	| 'password_short'
 	| 'password_long'
-	| 'sign_up_closed';
+	| 'sign_up_closed'
+	| 'too_many_attempts'
+	| 'last_admin';
 
 /** The body of a failed `/api` request. `error` is English, for anything without a `code`. */
 export interface ApiError {
@@ -74,6 +76,20 @@ export interface Me {
 	theme: string | null;
 	/** The reader's language (`#lib/locales.ts`); null until they have one. */
 	locale: string | null;
+	/** The reader's accent color (`#rrggbb`); null keeps the default. */
+	accent: string | null;
+	/** A tone (`#rrggbb`) the reader's paper takes on; null keeps the theme's paper. */
+	tone: string | null;
+}
+
+/** Which build the server runs, for the curious (Account → Stats for nerds). */
+export interface ServerInfo {
+	/** When the server's code was built (ISO time). */
+	built: string;
+	/** Git commit of the build, or '' when unknown. */
+	commit: string;
+	/** When the server process started (ms). */
+	started: number;
 }
 
 export interface SyncRequest {
@@ -87,6 +103,15 @@ export interface SyncRequest {
 	theme?: string | null;
 	/** The reader's language choice, when it changed on this device. */
 	locale?: string | null;
+	/** The reader's colors, sent with `theme` when the look changed on this device. */
+	accent?: string | null;
+	tone?: string | null;
+	/**
+	 * The account the pushed `mine` items belong to. When the session is
+	 * another account's (another tab signed in), the push is ignored, so one
+	 * account's thoughts never land in another's. Older clients leave it out.
+	 */
+	owner?: number;
 	mine?: {
 		/** A new lock (or null to remove it), based on the lock at revision `base`. */
 		lock?: { base: number; value: Lock | null };
@@ -106,6 +131,7 @@ export interface SyncResponse {
 	collections: (PublicCollection & { deleted: boolean })[];
 	thoughts: (PublicThought & { deleted: boolean })[];
 	me: Me | null;
+	server: ServerInfo;
 	mine?: {
 		lock: Lock | null;
 		/** Revision of the lock, the `base` for changing it. */

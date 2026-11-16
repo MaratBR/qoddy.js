@@ -7,6 +7,7 @@ import {
 	findCollection,
 	importCsv,
 	isHome,
+	setCollectionHidden,
 	updateCollection
 } from '#lib/server/collections.ts';
 import { db } from '#lib/server/db.ts';
@@ -52,6 +53,18 @@ export const actions: Actions = {
 		);
 		if (!result.ok) return result.failure;
 		redirect(303, `/admin/c/${result.value.slug}`);
+	},
+
+	visibility: async ({ locals, params, request }) => {
+		requireAdmin(locals);
+		const collection = collectionOr404(params.slug);
+		const values = fields(await request.formData());
+		const result = await attempt(values, () =>
+			setCollectionHidden(db(), collection.id, values.hidden === 'true')
+		);
+		// Shown in the Readers section, not next to the details form.
+		if (!result.ok) return fail(400, { ...result.failure.data, field: 'hidden' });
+		redirect(303, `/admin/c/${collection.slug}`);
 	},
 
 	delete: async ({ locals, params, request }) => {

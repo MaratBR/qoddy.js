@@ -65,11 +65,14 @@ export function updateSettings(db: Db, changes: Partial<Settings>): Settings {
 		if (!themeExists(next.default_theme)) {
 			throw new Invalid('Choose a known theme.', 'default_theme');
 		}
-		if (
-			next.home !== null &&
-			!db.prepare('SELECT 1 FROM collection WHERE id = ? AND deleted = 0').get(next.home)
-		) {
-			throw new Invalid('That collection no longer exists.', 'home');
+		if (next.home !== null) {
+			const home = db
+				.prepare('SELECT hidden FROM collection WHERE id = ? AND deleted = 0')
+				.get(next.home) as { hidden: number } | undefined;
+			if (!home) throw new Invalid('That collection no longer exists.', 'home');
+			if (home.hidden === 1) {
+				throw new Invalid('Readers cannot see that collection. Show it first.', 'home');
+			}
 		}
 		db.prepare(
 			`UPDATE settings SET site_name = ?, allow_sign_up = ?, default_theme = ?, home = ?,

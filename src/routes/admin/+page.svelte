@@ -20,7 +20,11 @@
 			<tr>
 				<td><a href="/admin/c/{collection.slug}">{collection.name}</a></td>
 				<td class="muted"
-					>/c/{collection.slug}{collection.id === data.home ? ' · home page' : ''}</td
+					>/c/{collection.slug}{collection.id === data.home ? ' · home page' : ''}{collection.hidden
+						? ' · hidden'
+						: collection.count === 0
+							? ' · empty, hidden from readers'
+							: ''}</td
 				>
 				<td class="number">{collection.count}</td>
 			</tr>

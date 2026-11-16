@@ -6,10 +6,11 @@
 // one used in its second half is extended. Signing out deletes the row.
 
 import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
-import { Invalid, type Db } from './db.ts';
+import { Invalid, transaction, type Db } from './db.ts';
 import { getSettings } from './settings.ts';
 import { themeExists } from '../themes.ts';
 import { findLocale } from '../locales.ts';
+import { normalizeColor } from '../thought.ts';
 import { MIN_PASSWORD } from '../wire.ts';
 
 export type Role = 'admin' | 'user';
@@ -23,6 +24,10 @@ export interface User {
 	theme: string | null;
 	/** Preferred language (`#lib/locales.ts`); null keeps the device's. */
 	locale: string | null;
+	/** Accent color (`#rrggbb`); null keeps the default. */
+	accent: string | null;
+	/** Paper tone (`#rrggbb`); null keeps the theme's paper. */
+	tone: string | null;
 }
 
 const SESSION_MS = 30 * 86_400_000;
@@ -60,7 +65,10 @@ async function verifyPassword(password: string, stored: string): Promise<boolean
 /** Checked when the email is unknown, so both failures take about as long. */
 let dummyHash: Promise<string> | undefined;
 
-const USER_COLUMNS = 'id, email, name, role, theme, locale';
+const USER_COLUMNS = 'id, email, name, role, theme, locale, accent, tone';
+
+/** Longest password checked, in UTF-16 units: longer ones cannot match (see `createUser`). */
+const MAX_PASSWORD = 1024;
 
 export function findUser(db: Db, id: number): User | undefined {
 	return db.prepare(`SELECT ${USER_COLUMNS} FROM user WHERE id = ?`).get(id) as User | undefined;
@@ -68,6 +76,25 @@ export function findUser(db: Db, id: number): User | undefined {
 
 export function listUsers(db: Db): User[] {
 	return db.prepare(`SELECT ${USER_COLUMNS} FROM user ORDER BY id`).all() as unknown as User[];
+}
+
+/** A row of the dashboard's account list: no password hash. */
+export interface Account extends User {
+	/** SQLite `datetime('now')` text, UTC: `YYYY-MM-DD HH:MM:SS`. */
+	created_at: string;
+	/** Live (not deleted) synced personal thoughts. */
+	thoughts: number;
+}
+
+export function listAccounts(db: Db): Account[] {
+	return db
+		.prepare(
+			`SELECT ${USER_COLUMNS}, created_at,
+				(SELECT count(*) FROM personal_item
+					WHERE personal_item.user_id = user.id AND deleted = 0) AS thoughts
+			FROM user ORDER BY id`
+		)
+		.all() as unknown as Account[];
 }
 
 export function findUserByEmail(db: Db, email: string): User | undefined {
@@ -81,6 +108,7 @@ function normalizeEmail(email: string): string {
 }
 
 export async function authenticate(db: Db, email: string, password: string): Promise<User | null> {
+	if (password.length > MAX_PASSWORD) return null;
 	const row = db
 		.prepare(`SELECT ${USER_COLUMNS}, password_hash FROM user WHERE email = ?`)
 		.get(normalizeEmail(email)) as (User & { password_hash: string }) | undefined;
@@ -107,7 +135,7 @@ export async function createUser(
 	if ([...input.password].length < MIN_PASSWORD) {
 		throw new Invalid(`Use at least ${MIN_PASSWORD} characters.`, 'password', 'password_short');
 	}
-	if (input.password.length > 1024) {
+	if (input.password.length > MAX_PASSWORD) {
 		throw new Invalid('That password is too long.', 'password', 'password_long');
 	}
 	if (findUserByEmail(db, email)) {
@@ -143,6 +171,7 @@ export async function setPassword(db: Db, email: string, password: string): Prom
 	if (!user) throw new Invalid(`No account with email ${email}.`);
 	if ([...password].length < MIN_PASSWORD)
 		throw new Invalid(`Use at least ${MIN_PASSWORD} characters.`);
+	if (password.length > MAX_PASSWORD) throw new Invalid('That password is too long.');
 	db.prepare('UPDATE user SET password_hash = ? WHERE id = ?').run(
 		await hashPassword(password),
 		user.id
@@ -162,6 +191,86 @@ export function setTheme(db: Db, user: User, theme: string | null): void {
 		theme && themeExists(theme) ? theme : null,
 		user.id
 	);
+}
+
+/** Saves the reader's colors; anything but `#rrggbb` clears one. */
+export function setColors(
+	db: Db,
+	user: User,
+	colors: { accent?: string | null; tone?: string | null }
+): void {
+	const color = (value: string | null | undefined) => (value && normalizeColor(value)) || null;
+	if (colors.accent !== undefined) {
+		db.prepare('UPDATE user SET accent = ? WHERE id = ?').run(color(colors.accent), user.id);
+	}
+	if (colors.tone !== undefined) {
+		db.prepare('UPDATE user SET tone = ? WHERE id = ?').run(color(colors.tone), user.id);
+	}
+}
+
+/**
+ * Deletes an account and everything it owns, at once: sessions, synced
+ * thoughts and the lock go with it (ON DELETE CASCADE), and secure_delete
+ * (`db.ts`) overwrites them in the file. The last admin cannot leave, or
+ * nobody could run the dashboard.
+ */
+export function deleteAccount(db: Db, userId: number): void {
+	transaction(db, () => {
+		const user = findUser(db, userId);
+		if (!user) return;
+		if (user.role === 'admin') {
+			const { n } = db.prepare("SELECT count(*) AS n FROM user WHERE role = 'admin'").get() as {
+				n: number;
+			};
+			if (n <= 1) {
+				throw new Invalid(
+					'You are the only admin. Make someone else an admin first.',
+					undefined,
+					'last_admin'
+				);
+			}
+		}
+		db.prepare('DELETE FROM user WHERE id = ?').run(userId);
+	});
+}
+
+// Sign-in throttling: after MAX_FAILURES wrong passwords for one email within
+// FAILURE_WINDOW, that email is refused until the window passes. Per email
+// rather than per address, so it holds behind a proxy; the cost is that a
+// stranger can hold one email's sign-in shut for a while (sessions already
+// signed in keep working). Kept in memory: a restart forgets it.
+const MAX_FAILURES = 10;
+const FAILURE_WINDOW = 15 * 60_000;
+const failures = new Map<string, { count: number; since: number }>();
+
+function failureEntry(email: string, now: number) {
+	const key = normalizeEmail(email);
+	const entry = failures.get(key);
+	if (entry && now - entry.since > FAILURE_WINDOW) {
+		failures.delete(key);
+		return { key, entry: undefined };
+	}
+	return { key, entry };
+}
+
+/** Whether sign-in for this email is refused for now. */
+export function signInThrottled(email: string, now = Date.now()): boolean {
+	return (failureEntry(email, now).entry?.count ?? 0) >= MAX_FAILURES;
+}
+
+/** Counts a failed sign-in, or (`ok`) forgets the email's failures. */
+export function noteSignIn(email: string, ok: boolean, now = Date.now()): void {
+	const { key, entry } = failureEntry(email, now);
+	if (ok) {
+		failures.delete(key);
+		return;
+	}
+	if (entry) entry.count++;
+	else {
+		// Bounded: past this many distinct emails, the oldest are dropped.
+		if (failures.size >= 10_000) failures.delete(failures.keys().next().value!);
+		failures.set(key, { count: 1, since: now });
+	}
 }
 
 function tokenId(token: string): string {

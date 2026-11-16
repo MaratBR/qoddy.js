@@ -112,7 +112,15 @@ const MIGRATIONS: string[] = [
 	UPDATE revision SET db = lower(hex(randomblob(8)));
 	`,
 	// Asks search engines not to index the site (see `hooks.server.ts`). Server-only: not synced.
-	`ALTER TABLE settings ADD COLUMN hide_from_search INTEGER NOT NULL DEFAULT 0;`
+	`ALTER TABLE settings ADD COLUMN hide_from_search INTEGER NOT NULL DEFAULT 0;`,
+	// The reader's own accent and paper tone (`#rrggbb`); null keeps the theme's.
+	`
+	ALTER TABLE user ADD COLUMN accent TEXT;
+	ALTER TABLE user ADD COLUMN tone TEXT;
+	`,
+	// An admin can hide a public collection: readers' devices get it and its
+	// thoughts as deletions (see `pull` in `sync.ts`). Every collection starts shown.
+	`ALTER TABLE collection ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0;`
 ];
 
 function migrate(db: Db): void {
@@ -129,7 +137,10 @@ function migrate(db: Db): void {
 
 export function open(path: string): Db {
 	const db = new DatabaseSync(path);
-	db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
+	// secure_delete overwrites deleted rows, so a deleted account leaves nothing behind in the file.
+	db.exec(
+		'PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA secure_delete = ON;'
+	);
 	migrate(db);
 	return db;
 }

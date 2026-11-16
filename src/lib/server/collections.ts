@@ -2,6 +2,10 @@
 // everyone reads them. The one the `home` setting names feeds the home page
 // and cannot be deleted while it does.
 //
+// Hiding keeps a collection from readers without deleting it: sync sends it
+// and its thoughts as deletions, and showing it again sends them back. The
+// home page's collection cannot be hidden.
+//
 // Deleting keeps a tombstone (`deleted = 1`, fields cleared) so the deletion
 // reaches offline copies on their next sync.
 
@@ -17,6 +21,8 @@ export interface Collection {
 	slug: string;
 	name: string;
 	description: string;
+	/** Kept from readers: their devices get it as deleted. */
+	hidden: boolean;
 }
 
 export interface Thought extends ThoughtFields {
@@ -29,15 +35,20 @@ export interface Thought extends ThoughtFields {
 const THOUGHT_COLUMNS =
 	'seq, id, collection_id, text, author, source, notes, lang, theme, color, font';
 
+type CollectionRow = Omit<Collection, 'hidden'> & { hidden: number };
+
+const toCollection = <T extends CollectionRow>(row: T) => ({ ...row, hidden: row.hidden === 1 });
+
 export function listCollections(db: Db): (Collection & { count: number })[] {
-	return db
+	const rows = db
 		.prepare(
-			`SELECT c.id, c.slug, c.name, c.description,
+			`SELECT c.id, c.slug, c.name, c.description, c.hidden,
 				(SELECT count(*) FROM thought t WHERE t.collection_id = c.id AND t.deleted = 0) AS count
 			FROM collection c WHERE c.deleted = 0
 			ORDER BY c.id IS NOT (SELECT home FROM settings), c.name COLLATE NOCASE`
 		)
-		.all() as unknown as (Collection & { count: number })[];
+		.all() as unknown as (CollectionRow & { count: number })[];
+	return rows.map(toCollection);
 }
 
 /** The home page shows this collection's thought of the day. */
@@ -46,9 +57,12 @@ export function isHome(db: Db, id: number): boolean {
 }
 
 export function findCollection(db: Db, slug: string): Collection | undefined {
-	return db
-		.prepare('SELECT id, slug, name, description FROM collection WHERE slug = ? AND deleted = 0')
-		.get(slug) as Collection | undefined;
+	const row = db
+		.prepare(
+			'SELECT id, slug, name, description, hidden FROM collection WHERE slug = ? AND deleted = 0'
+		)
+		.get(slug) as CollectionRow | undefined;
+	return row && toCollection(row);
 }
 
 function checkCollection(input: { slug: string; name: string; description?: string }) {
@@ -123,6 +137,26 @@ export function deleteCollection(db: Db, id: number): void {
 				lang = NULL, theme = NULL, color = NULL, font = NULL, rev = ?
 			WHERE collection_id = ? AND deleted = 0`
 		).run(rev, id);
+	});
+}
+
+/**
+ * Hides a collection from readers, or shows it again. Its thoughts' revisions
+ * move too (deleted ones included), so every device pulls them again: as
+ * deletions while hidden, as they are once shown.
+ */
+export function setCollectionHidden(db: Db, id: number, hidden: boolean): void {
+	transaction(db, () => {
+		const row = db.prepare('SELECT hidden FROM collection WHERE id = ? AND deleted = 0').get(id) as
+			{ hidden: number } | undefined;
+		if (!row) throw new Invalid('That collection no longer exists.');
+		if ((row.hidden === 1) === hidden) return;
+		if (hidden && isHome(db, id)) {
+			throw new Invalid('The home page shows this collection. Choose another in Settings first.');
+		}
+		const rev = nextRev(db);
+		db.prepare('UPDATE collection SET hidden = ?, rev = ? WHERE id = ?').run(+hidden, rev, id);
+		db.prepare('UPDATE thought SET rev = ? WHERE collection_id = ?').run(rev, id);
 	});
 }
 

@@ -16,6 +16,11 @@
 
 <p class="crumbs"><a href="/admin">Collections</a></p>
 <h1>{data.collection.name}</h1>
+{#if data.collection.hidden}
+	<p class="muted">Hidden from readers.</p>
+{:else if data.listing.total === 0 && !data.search}
+	<p class="muted">Empty, so hidden from readers until it has a thought.</p>
+{/if}
 
 {#if data.imported}
 	<p role="status" class="notice">Added {data.imported} thoughts.</p>
@@ -96,6 +101,35 @@
 		{#if form?.error && !form.field}<p class="error">{form.error}</p>{/if}
 		<button class="button">Save details</button>
 	</form>
+</section>
+
+<section>
+	<h2>Readers</h2>
+	{#if data.collection.hidden}
+		<p>
+			Hidden: readers’ devices drop this collection and its thoughts on their next sync. Showing it
+			sends them back.
+		</p>
+		<form method="post" action="?/visibility">
+			<input type="hidden" name="hidden" value="false" />
+			<button class="button">Show to readers</button>
+		</form>
+	{:else if data.isHome}
+		<p>
+			Shown. The home page shows this collection’s thought of the day, so it cannot be hidden;
+			choose another home page in <a href="/admin/settings">Settings</a> first.
+		</p>
+	{:else}
+		<p>
+			Shown. Hiding keeps the collection and its thoughts here but drops them from readers’ devices
+			on their next sync. Readers keep any they kept in their own thoughts.
+		</p>
+		<form method="post" action="?/visibility">
+			<input type="hidden" name="hidden" value="true" />
+			<button class="button secondary">Hide from readers</button>
+		</form>
+	{/if}
+	{#if error('hidden')}<p class="error">{error('hidden')}</p>{/if}
 </section>
 
 {#if data.isHome}

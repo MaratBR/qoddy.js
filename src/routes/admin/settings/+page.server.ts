@@ -8,7 +8,8 @@ import type { Actions, PageServerLoad } from './$types';
 export const load: PageServerLoad = ({ locals }) => {
 	requireAdmin(locals);
 	const settings = getSettings(db());
-	const collections = listCollections(db());
+	// A hidden collection cannot be the home page (`updateSettings` refuses it).
+	const collections = listCollections(db()).filter((c) => !c.hidden || c.id === settings.home);
 	const home = collections.find((c) => c.id === settings.home)?.slug ?? MINE_SLUG;
 	return { settings, home, mine: MINE_SLUG, collections, themes: THEMES };
 };

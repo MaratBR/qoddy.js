@@ -22,6 +22,7 @@
 				aria-current={/^\/admin(\/[ct]\/.*)?$/.test(page.url.pathname) ? 'page' : undefined}
 				>Collections</a
 			>
+			<a href="/admin/users" aria-current={here('/admin/users', true)}>Users</a>
 			<a href="/admin/settings" aria-current={here('/admin/settings', true)}>Settings</a>
 		</nav>
 		<p class="who">Signed in as {data.user.name}</p>

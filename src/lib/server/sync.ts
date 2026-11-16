@@ -13,15 +13,24 @@
 
 import { currentRev, databaseId, Invalid, nextRev, transaction, type Db } from './db.ts';
 import { getSettings } from './settings.ts';
-import { findUser, setLocale, setTheme, type User } from './accounts.ts';
+import { findUser, setColors, setLocale, setTheme, type User } from './accounts.ts';
 import { isId } from '../thought.ts';
-import type { Lock, MineItem, SyncRequest, SyncResponse } from '../wire.ts';
+import type { Lock, MineItem, ServerInfo, SyncRequest, SyncResponse } from '../wire.ts';
 
 export type { Lock, MineItem, SyncRequest, SyncResponse };
 
 export const MAX_ITEMS = 5000;
 export const MAX_ITEM_BYTES = 256 * 1024;
+/** All of one reader's live items together, so an open sign-up cannot fill the disk. */
+export const MAX_BYTES = 32 * 1024 * 1024;
 const MAX_PUSH = 5000;
+
+/** The running build (`vite.config.ts` defines it; absent outside a Vite build). */
+const SERVER: ServerInfo = {
+	built: typeof __QODDY_BUILD__ === 'undefined' ? '' : __QODDY_BUILD__.built,
+	commit: typeof __QODDY_BUILD__ === 'undefined' ? '' : __QODDY_BUILD__.commit,
+	started: Date.now()
+};
 
 const b64 = (value: unknown, max: number) =>
 	typeof value === 'string' && value.length <= max && /^[A-Za-z0-9+/]*={0,2}$/.test(value);
@@ -84,6 +93,9 @@ export function parseSyncRequest(body: unknown): SyncRequest {
 	};
 	if (input.theme === null || typeof input.theme === 'string') request.theme = input.theme;
 	if (input.locale === null || typeof input.locale === 'string') request.locale = input.locale;
+	if (Number.isSafeInteger(input.owner)) request.owner = input.owner as number;
+	if (input.accent === null || typeof input.accent === 'string') request.accent = input.accent;
+	if (input.tone === null || typeof input.tone === 'string') request.tone = input.tone;
 	const mine = input.mine as Record<string, unknown> | undefined;
 	if (mine !== undefined) {
 		if (typeof mine !== 'object' || mine === null || !Array.isArray(mine.items)) {
@@ -156,6 +168,14 @@ function push(db: Db, userId: number, mine: NonNullable<SyncRequest['mine']>) {
 	const count = db.prepare(
 		'SELECT count(*) AS n FROM personal_item WHERE user_id = ? AND deleted = 0'
 	);
+	const bytes = (data: string) => Buffer.byteLength(data);
+	let total = (
+		db
+			.prepare(
+				'SELECT total(length(CAST(data AS BLOB))) AS n FROM personal_item WHERE user_id = ? AND deleted = 0'
+			)
+			.get(userId) as { n: number }
+	).n;
 	const upsert = db.prepare(
 		`INSERT INTO personal_item (user_id, id, data, key, updated_at, deleted, rev) VALUES (?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (user_id, id) DO UPDATE SET data = excluded.data, key = excluded.key,
@@ -175,6 +195,13 @@ function push(db: Db, userId: number, mine: NonNullable<SyncRequest['mine']>) {
 			rejected.push({ id: item.id, reason: 'limit' });
 			continue;
 		}
+		const was = existing && !existing.deleted ? bytes(existing.data) : 0;
+		const next = item.deleted ? 0 : bytes(item.data);
+		if (next > was && total - was + next > MAX_BYTES) {
+			rejected.push({ id: item.id, reason: 'limit' });
+			continue;
+		}
+		total += next - was;
 		// A tombstone keeps nothing of the thought.
 		const data = item.deleted ? '' : item.data;
 		upsert.run(
@@ -205,7 +232,8 @@ export function sync(db: Db, user: User | null, request: SyncRequest): SyncRespo
 		if (user) {
 			if (request.theme !== undefined) setTheme(db, user, request.theme);
 			if (request.locale !== undefined) setLocale(db, user, request.locale);
-			if (request.mine) {
+			setColors(db, user, { accent: request.accent, tone: request.tone });
+			if (request.mine && (request.owner === undefined || request.owner === user.id)) {
 				// A refused lock change undoes the push but still answers with a pull.
 				db.exec('SAVEPOINT push');
 				try {
@@ -237,7 +265,14 @@ function pull(
 	const elsewhere = request.db !== id && (request.since > 0 || request.mineSince > 0);
 	const reset = elsewhere || request.since > rev || request.mineSince > rev;
 	const since = reset ? 0 : request.since;
-	const response: SyncResponse = { db: id, rev, collections: [], thoughts: [], me: null };
+	const response: SyncResponse = {
+		db: id,
+		rev,
+		collections: [],
+		thoughts: [],
+		me: null,
+		server: SERVER
+	};
 	if (reset) response.reset = true;
 
 	const settings = getSettings(db);
@@ -245,21 +280,45 @@ function pull(
 		const { rev: _, hide_from_search: __, ...rest } = settings;
 		response.settings = rest;
 	}
+	// A hidden collection and its thoughts reach readers as deletions, blanked
+	// like real ones; showing it again bumps their revisions, so they come back.
+	type Row<T> = Omit<T, 'deleted'> & { deleted: number; hidden: number };
 	response.collections = (
 		db
 			.prepare(
-				'SELECT id, slug, name, description, deleted FROM collection WHERE rev > ? ORDER BY id'
+				'SELECT id, slug, name, description, deleted, hidden FROM collection WHERE rev > ? ORDER BY id'
 			)
-			.all(since) as unknown as SyncResponse['collections']
-	).map((row) => ({ ...row, deleted: Boolean(row.deleted) }));
+			.all(since) as unknown as Row<SyncResponse['collections'][number]>[]
+	).map(({ hidden, deleted, ...row }) =>
+		deleted || hidden
+			? { id: row.id, slug: `~${row.id}`, name: '', description: '', deleted: true }
+			: { ...row, deleted: false }
+	);
 	response.thoughts = (
 		db
 			.prepare(
-				`SELECT id, seq, collection_id, text, author, source, notes, lang, theme, color, font, deleted
-				FROM thought WHERE rev > ? ORDER BY seq`
+				`SELECT t.id, t.seq, t.collection_id, t.text, t.author, t.source, t.notes, t.lang, t.theme,
+					t.color, t.font, t.deleted, c.hidden
+				FROM thought t JOIN collection c ON c.id = t.collection_id
+				WHERE t.rev > ? ORDER BY t.seq`
 			)
-			.all(since) as unknown as SyncResponse['thoughts']
-	).map((row) => ({ ...row, deleted: Boolean(row.deleted) }));
+			.all(since) as unknown as Row<SyncResponse['thoughts'][number]>[]
+	).map(({ hidden, deleted, ...row }) =>
+		deleted || hidden
+			? {
+					...row,
+					text: '',
+					author: null,
+					source: null,
+					notes: null,
+					lang: null,
+					theme: null,
+					color: null,
+					font: null,
+					deleted: true
+				}
+			: { ...row, deleted: false }
+	);
 
 	if (user) {
 		response.me = findUser(db, user.id) ?? null;

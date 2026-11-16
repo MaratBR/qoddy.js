@@ -8,7 +8,12 @@ import {
 	authenticate,
 	createSession,
 	createUser,
+	deleteAccount,
 	deleteSession,
+	findUser,
+	noteSignIn,
+	signInThrottled,
+	listAccounts,
 	sessionUser,
 	signUp,
 	type User
@@ -22,10 +27,12 @@ import {
 	deleteThought,
 	findCollection,
 	importCsv,
+	listCollections,
+	setCollectionHidden,
 	updateCollection,
 	updateThought
 } from './collections.ts';
-import { parseSyncRequest, sync, type Lock, type MineItem } from './sync.ts';
+import { MAX_BYTES, parseSyncRequest, sync, type Lock, type MineItem } from './sync.ts';
 
 let db: Db;
 beforeEach(() => {
@@ -98,6 +105,33 @@ describe('accounts', () => {
 		await expect(createUser(db, { email: 'x@y.z', name: 'X', password: 'short' })).rejects.toThrow(
 			/at least/
 		);
+	});
+
+	it('lists accounts with their role, creation date and live thoughts', async () => {
+		const admin = await createUser(db, {
+			email: 'a@x.y',
+			name: 'A',
+			password: '12345678',
+			role: 'admin'
+		});
+		const reader = await createUser(db, { email: 'r@x.y', name: 'R', password: '12345678' });
+		const insert = db.prepare(
+			'INSERT INTO personal_item (user_id, id, data, updated_at, deleted, rev) VALUES (?, ?, ?, 0, ?, 1)'
+		);
+		insert.run(reader.id, 'one', '{}', 0);
+		insert.run(reader.id, 'two', '{}', 0);
+		insert.run(reader.id, 'gone', '{}', 1);
+		insert.run(admin.id, 'gone', '{}', 1);
+
+		const accounts = listAccounts(db);
+		expect(accounts).toMatchObject([
+			{ id: admin.id, email: 'a@x.y', role: 'admin', thoughts: 0 },
+			{ id: reader.id, email: 'r@x.y', role: 'user', thoughts: 2 }
+		]);
+		for (const account of accounts) {
+			expect(account.created_at).toMatch(/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/);
+			expect(account).not.toHaveProperty('password_hash');
+		}
 	});
 });
 
@@ -174,6 +208,19 @@ describe('collections', () => {
 		createCollection(db, { slug: 'stoics', name: 'Stoics again' });
 	});
 
+	it('hides any collection but the home page’s, which a hidden one cannot become', () => {
+		const stoics = createCollection(db, { slug: 'stoics', name: 'Stoics' });
+		expect(stoics.hidden).toBe(false);
+		expect(() => setCollectionHidden(db, defaultId(), true)).toThrow(/home page/);
+		setCollectionHidden(db, stoics.id, true);
+		expect(findCollection(db, 'stoics')?.hidden).toBe(true);
+		expect(listCollections(db).find((c) => c.id === stoics.id)?.hidden).toBe(true);
+		expect(() => updateSettings(db, { home: stoics.id })).toThrow(Invalid);
+		expect(getSettings(db).home).toBe(defaultId());
+		setCollectionHidden(db, stoics.id, false);
+		expect(updateSettings(db, { home: stoics.id }).home).toBe(stoics.id);
+	});
+
 	it('imports CSV all or nothing', () => {
 		expect(importCsv(db, defaultId(), 'text,author,notes\n"Hi, there",Me,"**why**"\nBye,,\n')).toBe(
 			2
@@ -218,6 +265,40 @@ describe('sync', () => {
 		const third = sync(db, null, { db: dbId(), since: second.rev, mineSince: 0 });
 		expect(third.thoughts).toMatchObject([{ id: t.id, deleted: true, text: '' }]);
 		expect(sync(db, null, { db: dbId(), since: third.rev + 100, mineSince: 0 }).reset).toBe(true);
+	});
+
+	it('sends a hidden collection and its thoughts as deletions, and back when shown', () => {
+		const stoics = createCollection(db, { slug: 'stoics', name: 'Stoics' });
+		const kept = addThought(db, stoics.id, { text: 'Kept', author: 'Seneca' });
+		const gone = addThought(db, stoics.id, { text: 'Gone' });
+		deleteThought(db, gone.id);
+		const before = sync(db, null, { db: dbId(), since: 0, mineSince: 0 });
+		expect(before.thoughts.find((x) => x.id === kept.id)).toMatchObject({ deleted: false });
+
+		setCollectionHidden(db, stoics.id, true);
+		const hidden = { id: stoics.id, slug: `~${stoics.id}`, name: '', deleted: true };
+		const tombstone = { text: '', author: null, deleted: true };
+		const isLive = (response: ReturnType<typeof sync>) =>
+			response.collections.some((c) => c.id === stoics.id && !c.deleted) ||
+			response.thoughts.some((x) => x.collection_id === stoics.id && !x.deleted);
+		// A device that had them, and a fresh one.
+		for (const since of [before.rev, 0]) {
+			const pulled = sync(db, null, { db: dbId(), since, mineSince: 0 });
+			expect(isLive(pulled)).toBe(false);
+			expect(pulled.collections.find((c) => c.id === stoics.id)).toMatchObject(hidden);
+			expect(pulled.thoughts.find((x) => x.id === kept.id)).toMatchObject(tombstone);
+			expect(pulled.thoughts.find((x) => x.id === gone.id)).toMatchObject(tombstone);
+		}
+		// Thoughts added while hidden stay hidden.
+		const added = addThought(db, stoics.id, { text: 'Added' });
+		const later = sync(db, null, { db: dbId(), since: before.rev, mineSince: 0 });
+		expect(later.thoughts.find((x) => x.id === added.id)).toMatchObject(tombstone);
+
+		setCollectionHidden(db, stoics.id, false);
+		const shown = sync(db, null, { db: dbId(), since: later.rev, mineSince: 0 });
+		expect(shown.collections).toMatchObject([{ id: stoics.id, slug: 'stoics', deleted: false }]);
+		expect(shown.thoughts.filter((x) => !x.deleted).map((x) => x.text)).toEqual(['Kept', 'Added']);
+		expect(shown.thoughts.find((x) => x.id === gone.id)).toMatchObject({ deleted: true });
 	});
 
 	it('starts over on cursors from another database, even at the same revision', () => {
@@ -336,6 +417,95 @@ describe('sync', () => {
 			db: '',
 			since: 0,
 			mineSince: 0
+		});
+	});
+});
+
+describe('account deletion and sign-in limits', () => {
+	it('deletes an account with everything in it, but never the last admin', async () => {
+		const admin = await createUser(db, {
+			email: 'admin@x.y',
+			name: 'A',
+			password: '12345678',
+			role: 'admin'
+		});
+		const reader = await createUser(db, { email: 'r@x.y', name: 'R', password: '12345678' });
+		createSession(db, reader.id);
+		sync(
+			db,
+			reader,
+			parseSyncRequest({
+				since: 0,
+				mineSince: 0,
+				mine: { items: [{ id: 'item1234', data: '{}', key: '', updatedAt: 1, deleted: false }] }
+			})
+		);
+		deleteAccount(db, reader.id);
+		expect(findUser(db, reader.id)).toBeUndefined();
+		for (const table of ['session', 'personal', 'personal_item']) {
+			expect(
+				db.prepare(`SELECT count(*) AS n FROM ${table} WHERE user_id = ?`).get(reader.id)
+			).toEqual({
+				n: 0
+			});
+		}
+		expect(() => deleteAccount(db, admin.id)).toThrow(
+			expect.objectContaining({ code: 'last_admin' })
+		);
+		await createUser(db, { email: 'b@x.y', name: 'B', password: '12345678', role: 'admin' });
+		deleteAccount(db, admin.id);
+		expect(findUser(db, admin.id)).toBeUndefined();
+	});
+
+	it('refuses an email after ten wrong passwords for a while', () => {
+		const start = 1_000_000;
+		for (let i = 0; i < 10; i++) {
+			expect(signInThrottled('Limit@x.y', start)).toBe(false);
+			noteSignIn('limit@x.y', false, start);
+		}
+		expect(signInThrottled('limit@x.y', start + 1000)).toBe(true);
+		expect(signInThrottled('other@x.y', start + 1000)).toBe(false);
+		expect(signInThrottled('limit@x.y', start + 16 * 60_000)).toBe(false);
+		noteSignIn('limit@x.y', true, start);
+		expect(signInThrottled('limit@x.y', start)).toBe(false);
+	});
+
+	it('keeps a push out of another account and caps a reader’s bytes', async () => {
+		const reader = await createUser(db, { email: 'q@x.y', name: 'Q', password: '12345678' });
+		const item = (id: string, data: string) => ({
+			id,
+			data,
+			key: '',
+			updatedAt: 1,
+			deleted: false
+		});
+		sync(
+			db,
+			reader,
+			parseSyncRequest({
+				since: 0,
+				mineSince: 0,
+				owner: reader.id + 1,
+				mine: { items: [item('item1234', '{}')] }
+			})
+		);
+		expect(sync(db, reader, parseSyncRequest({ since: 0, mineSince: 0 })).mine!.items).toEqual([]);
+
+		const big = 'x'.repeat(250 * 1024);
+		const items = Array.from({ length: Math.ceil(MAX_BYTES / big.length) + 1 }, (_, i) =>
+			item(`item${String(i).padStart(4, '0')}`, big)
+		);
+		const response = sync(db, reader, { since: 0, mineSince: 0, db: '', mine: { items } });
+		expect(response.mine!.rejected.some((r) => r.reason === 'limit')).toBe(true);
+		const stored = db
+			.prepare('SELECT total(length(data)) AS n FROM personal_item WHERE user_id = ?')
+			.get(reader.id) as { n: number };
+		expect(stored.n).toBeLessThanOrEqual(MAX_BYTES);
+	});
+
+	it('tells which build the server runs', () => {
+		expect(sync(db, null, parseSyncRequest({ since: 0, mineSince: 0 })).server).toMatchObject({
+			started: expect.any(Number)
 		});
 	});
 });
