@@ -25,3 +25,25 @@ export function useLook(source: () => Look | null | undefined): void {
 export function fontHref(family: string): string {
 	return `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family).replace(/%20/g, '+')}&display=swap`;
 }
+
+/** A color token (`--paper`) as the page resolves it now, light-dark() and color-mix() included. */
+export function resolveColor(token: string): string {
+	const probe = document.createElement('span');
+	probe.style.cssText = `position:absolute;visibility:hidden;color:var(${token})`;
+	document.body.append(probe);
+	const color = getComputedStyle(probe).color;
+	probe.remove();
+	return color;
+}
+
+/** A CSS color as `#rrggbb` (what browser chrome understands everywhere), or as given if the canvas cannot read it. */
+export function toHex(color: string): string {
+	const context = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+	if (!context) return color;
+	context.fillStyle = '#010203';
+	context.fillStyle = color;
+	if (context.fillStyle === '#010203') return color;
+	context.fillRect(0, 0, 1, 1);
+	const [r, g, b] = context.getImageData(0, 0, 1, 1).data;
+	return `#${[r, g, b].map((n) => n.toString(16).padStart(2, '0')).join('')}`;
+}
