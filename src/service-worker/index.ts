@@ -123,6 +123,10 @@ self.addEventListener('fetch', (event) => {
 	const url = new URL(request.url);
 
 	if (FONT_HOSTS.has(url.hostname)) {
+		// The font picker's previews (a family's face for the letters of its
+		// name: `text=`, served from `/l/`) differ with every search, so they
+		// would only fill the cache.
+		if (url.searchParams.has('text') || url.pathname.startsWith('/l/')) return;
 		event.respondWith(cacheFirst(request, FONTS));
 		return;
 	}

@@ -13,6 +13,7 @@
 	import NotesEditor from '#lib/components/NotesEditor.svelte';
 	import Select from '#lib/components/Select.svelte';
 	import ColorPicker from '#lib/components/ColorPicker.svelte';
+	import FontPicker from '#lib/components/FontPicker.svelte';
 	import Icon from '#lib/components/Icon.svelte';
 	import { i18n, t } from '#lib/client/i18n.svelte.ts';
 
@@ -28,6 +29,8 @@
 	let color = $state(existing?.color ?? '#6b4fa8');
 	let font = $state(existing?.font ?? '');
 	let lang = $state(existing?.lang ?? '');
+	/** A font being looked at in the font list, shown on the text until the list closes. */
+	let fontBrowsing = $state<string | null>(null);
 	/** Which of your collections it goes in ('' for Your thoughts): its own, else the one it was written from (`?c=`). */
 	const from = library.source(page.url.searchParams.get('c') ?? '');
 	let collection = $state(
@@ -46,8 +49,10 @@
 	useLook(() => ({
 		theme: theme || null,
 		color: colored ? normalizeColor(color) : null,
-		// Load a font only once it is a plausible family name.
-		font: validFont(font.trim()) ? font.trim() : null
+		// Load a font only once it is a plausible family name; one being tried,
+		// only for the letters on the page.
+		font: fontBrowsing ?? (validFont(font.trim()) ? font.trim() : null),
+		fontText: fontBrowsing && text + author + source
 	}));
 
 	// A new thought starts with the cursor in it.
@@ -258,16 +263,16 @@
 								<ColorPicker bind:value={color} label={t.write.color} />
 							</div>
 						{/if}
-						<label class="field">
-							<span>{t.write.font}</span>
-							<input
+						<div class="field">
+							<span id="font-label">{t.write.font}</span>
+							<FontPicker
 								bind:value={font}
-								placeholder={t.write.fontHint}
-								autocomplete="off"
-								spellcheck="false"
+								bind:browsing={fontBrowsing}
+								labelledby="font-label"
+								reveal={textarea}
 							/>
 							{#if fieldError('font')}<span class="error">{fieldError('font')}</span>{/if}
-						</label>
+						</div>
 						<label class="field">
 							<span>{t.write.language}</span>
 							<input

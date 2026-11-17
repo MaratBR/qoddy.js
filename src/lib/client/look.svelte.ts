@@ -4,9 +4,12 @@
 
 import type { ThoughtFields } from '../thought.ts';
 
-type Look = Pick<ThoughtFields, 'theme' | 'color' | 'font'>;
+type Look = Pick<ThoughtFields, 'theme' | 'color' | 'font'> & {
+	/** Set while a font is only being tried: the letters to load it for (see `fontHref`). */
+	fontText?: string | null;
+};
 
-export const look = $state<Look>({ theme: null, color: null, font: null });
+export const look = $state<Look>({ theme: null, color: null, font: null, fontText: null });
 
 /** Shows the thought's look while the calling component is mounted. Call during init. */
 export function useLook(source: () => Look | null | undefined): void {
@@ -15,15 +18,23 @@ export function useLook(source: () => Look | null | undefined): void {
 		look.theme = value?.theme ?? null;
 		look.color = value?.color ?? null;
 		look.font = value?.font ?? null;
+		look.fontText = value?.fontText ?? null;
 		return () => {
-			look.theme = look.color = look.font = null;
+			look.theme = look.color = look.font = look.fontText = null;
 		};
 	});
 }
 
-/** A Google Fonts stylesheet for a validated family name. */
-export function fontHref(family: string): string {
-	return `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family).replace(/%20/g, '+')}&display=swap`;
+/**
+ * A Google Fonts stylesheet for a validated family name. Given `text`, only
+ * its letters (Google's `text=`): a few kilobytes for a font being tried, which
+ * the service worker does not keep. Text with too many different letters for
+ * a URL gets the whole family.
+ */
+export function fontHref(family: string, text?: string | null): string {
+	const href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family).replace(/%20/g, '+')}&display=swap`;
+	const letters = [...new Set(text ?? '')].join('');
+	return letters && letters.length <= 300 ? `${href}&text=${encodeURIComponent(letters)}` : href;
 }
 
 /** A color token (`--paper`) as the page resolves it now, light-dark() and color-mix() included. */

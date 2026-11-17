@@ -48,7 +48,7 @@ A thought is its text plus optional fields:
 - **author** and **source**: leave both empty for your own thought.
 - **notes**: an explanation in simple Markdown (paragraphs, `**bold**`, `*italic*`, `` `code` ``, links, lists, `>` quotes, `#` headings, `---`). The renderer escapes everything first and allows only `http(s)` and `mailto` links, so notes can never carry HTML. In the reading app, notes are edited as they read (Tiptap, limited to what the renderer knows) and written back as Markdown by `toMarkdown` in `markdown.ts`.
 - **lang**: sets the text's language and direction, which drives quotation marks, CJK sizing and right-to-left layout.
-- **theme**, **color**, **font**: override the reader's theme on that thought's page. `color` tints the page and `font` is any Google Fonts family, loaded for that thought only.
+- **theme**, **color**, **font**: override the reader's theme on that thought's page. `color` tints the page and `font` is any Google Fonts family, loaded for that thought only. The writing page picks a family in a sheet along the bottom of the screen: a few that suit quotations, by kind (`src/lib/client/font-picks.ts`), until a search looks through all of them, each in its own face, and sets the thought above it in whichever one is pointed at; the list is `src/lib/client/google-fonts.json`, refreshed with `pnpm google-fonts`.
 
 ## Collections
 
@@ -106,7 +106,7 @@ The site installs as an app (`/manifest.webmanifest` is built from the site sett
 
 - **Pages:** serves the same client-rendered shell for every app page.
 - **Code:** keeps app code as it is fetched. After the first visit it fetches every reading-app route's code, so everything works offline from then on.
-- **Fonts:** precaches the basic Latin subset of the bundled theme fonts. Other scripts' subsets, and Google Fonts chosen by individual thoughts, are kept once used.
+- **Fonts:** precaches the basic Latin subset of the bundled theme fonts. Other scripts' subsets, and Google Fonts chosen by individual thoughts, are kept once used. The font picker's previews (each family's face for the letters of its name) are not kept.
 - **Online only:** `/api` and `/admin` always go to the network.
 
 When a new version is deployed, the worker replaces the old cache, and open tabs say a new version is ready and offer a reload.

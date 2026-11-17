@@ -127,7 +127,7 @@
 <svelte:head>
 	<title>{library.settings.site_name}</title>
 	{#if look.font}
-		<link rel="stylesheet" href={fontHref(look.font)} />
+		<link rel="stylesheet" href={fontHref(look.font, look.fontText)} />
 	{/if}
 </svelte:head>
 

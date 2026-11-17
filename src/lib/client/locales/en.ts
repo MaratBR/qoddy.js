@@ -2,6 +2,7 @@
 // other locale must have the same keys and the same function signatures.
 
 import type { ThoughtProblem } from '../../thought.ts';
+import type { FontPickGroup } from '../font-picks.ts';
 import { MIN_PASSWORD, type ErrorCode } from '../../wire.ts';
 
 const thoughts = (n: number) => (n === 1 ? 'thought' : 'thoughts');
@@ -375,7 +376,21 @@ export const en = {
 		hue: 'Hue',
 		hex: 'Hex code',
 		font: 'Font',
-		fontHint: 'Any Google Fonts family, e.g. Lora',
+		fontHint: 'Search Google Fonts',
+		fontNone: 'No family by that name',
+		themeFont: 'The theme’s own',
+		fontDone: 'Done',
+		fontGroups: {
+			classic: 'Classic book serifs',
+			modern: 'Clean and modern',
+			handwritten: 'Handwritten',
+			script: 'Elegant script',
+			bold: 'Bold statements',
+			typewriter: 'Typewriter',
+			old: 'Old world'
+		} satisfies Record<FontPickGroup, string>,
+		fontSearchAll: (n: number) => `Search to find any of the ${n} Google Fonts families`,
+		fontMore: (n: number) => `${n} more: type to narrow the list`,
 		language: 'Language',
 		languageHint: 'A tag like en, fr or zh-Hans',
 		collection: 'Collection',

@@ -20,7 +20,8 @@
 		"format": "prettier --write .",
 		"qoddy": "node --disable-warning=ExperimentalWarning scripts/cli.ts",
 		"test-db": "scripts/test-db.sh",
-		"start": "node --disable-warning=ExperimentalWarning build"
+		"start": "node --disable-warning=ExperimentalWarning build",
+		"google-fonts": "node scripts/google-fonts.ts"
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-node": "^6.0.0",
