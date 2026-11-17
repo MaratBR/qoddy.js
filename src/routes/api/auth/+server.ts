@@ -20,10 +20,22 @@ import {
 
 const text = (value: unknown) => (typeof value === 'string' ? value : '');
 
+const throttled = () =>
+	invalid(
+		new Invalid(
+			'Too many wrong passwords. Try again in a few minutes.',
+			'password',
+			'too_many_attempts'
+		),
+		429
+	);
+
 /**
  * `{ action: 'signin' | 'signup', email, password, name?, locale? }` starts a session;
  * `{ action: 'signout' }` ends this one; `{ action: 'delete' }` deletes the
- * signed-in account and everything in it. Answers `{ ok: true }` or an error.
+ * signed-in account and everything in it; `{ action: 'verify', password }`
+ * checks the signed-in account's password (before the browser encrypts
+ * thoughts with it). Answers `{ ok: true }` or an error.
  */
 export const POST: RequestHandler = async ({ request, cookies, locals }) => {
 	try {
@@ -41,18 +53,27 @@ export const POST: RequestHandler = async ({ request, cookies, locals }) => {
 			clearSessionCookie(cookies);
 			return Response.json({ ok: true }, { headers: NO_STORE });
 		}
+		if (action === 'verify') {
+			if (!locals.user) return invalid(new Invalid('Not signed in.'), 401);
+			const { email } = locals.user;
+			if (signInThrottled(email)) {
+				return throttled();
+			}
+			const user = await authenticate(db(), email, text(body.password));
+			noteSignIn(email, user !== null);
+			if (!user) {
+				return invalid(
+					new Invalid('That is not your account password.', 'password', 'not_your_password'),
+					401
+				);
+			}
+			return Response.json({ ok: true }, { headers: NO_STORE });
+		}
 		const credentials = { email: text(body.email), password: text(body.password) };
 		let user;
 		if (action === 'signin') {
 			if (signInThrottled(credentials.email)) {
-				return invalid(
-					new Invalid(
-						'Too many wrong passwords. Try again in a few minutes.',
-						'password',
-						'too_many_attempts'
-					),
-					429
-				);
+				return throttled();
 			}
 			user = await authenticate(db(), credentials.email, credentials.password);
 			noteSignIn(credentials.email, user !== null);

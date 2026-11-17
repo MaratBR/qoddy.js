@@ -1204,6 +1204,8 @@ class Library {
 	 */
 	async signIn(email: string, password: string, discard = false): Promise<void> {
 		await this.#entering(email, discard, () => this.#auth({ action: 'signin', email, password }));
+		// The thought lock is keyed by the account password: signing in opens it.
+		await this.#openLock(password);
 	}
 
 	/** A new account starts in the language the app is showing: the browser's, unless the reader chose. */
@@ -1281,17 +1283,28 @@ class Library {
 
 	// --- Lock --------------------------------------------------------------------
 
-	/** Unlocks the collection on this device with its password. */
+	/**
+	 * Unlocks the collection on this device with the password it is encrypted
+	 * with: the account password, or an earlier one if it has been reset.
+	 */
 	async unlock(password: string): Promise<void> {
+		if (!(await this.#openLock(password))) {
+			throw new LibraryError(t.errors.wrongLockPassword, 'password');
+		}
+	}
+
+	/** Opens the lock with `password` if it is not open here; false if the password does not fit. */
+	async #openLock(password: string): Promise<boolean> {
 		const lock = this.#state.lock;
-		if (!lock) return;
+		if (!lock || this.#keys.has(lock.key)) return true;
 		const key = await openLock(lock, password);
-		if (!key) throw new LibraryError(t.errors.wrongLockPassword, 'password');
+		if (!key) return false;
 		this.#keys.set(lock.key, key);
 		this.#keyVersion++;
 		await idb.write(await this.#keyChange(lock.key, key));
 		await this.#rebuild();
 		void this.sync();
+		return true;
 	}
 
 	/** Forgets the key on this device; the password is needed to read again. */
@@ -1303,15 +1316,18 @@ class Library {
 	}
 
 	/**
-	 * Locks the collection with a new password, or removes the lock (`null`).
-	 * Every thought is re-sealed here and sent at once; the server refuses the
-	 * change if another device wrote meanwhile, and then this asks to retry.
+	 * Encrypts the collection with the account password (checked by the server
+	 * first, so a typo cannot lock the thoughts away), or removes the lock
+	 * (`null`). Every thought is re-sealed here and sent at once; the server
+	 * refuses the change if another device wrote meanwhile, and then this asks
+	 * to retry.
 	 */
 	async setLock(password: string | null): Promise<void> {
 		if (!this.signedIn) throw new LibraryError(t.errors.signInToLock);
 		if (!navigator.onLine) throw new LibraryError(t.account.lockNeedsConnection);
 		await this.sync();
 		if (this.locked || this.sealed > 0) throw new LibraryError(t.errors.unlockFirst);
+		if (password) await this.#auth({ action: 'verify', password });
 		const next = password ? await createLock(password) : null;
 		const items: MineItem[] = [];
 		for (const record of this.#records.values()) {

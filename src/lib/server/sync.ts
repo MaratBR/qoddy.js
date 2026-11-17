@@ -4,8 +4,8 @@
 // Public data (settings, collections, thoughts) is the same for everyone.
 // Personal thoughts are opaque to the server: `data` is either the thought's
 // JSON or, when the collection is locked, an AES-GCM envelope the browser made
-// from the reader's password. The server never sees the password or the key;
-// it only checks that each item is written with the current key id, so a
+// with a key from the reader's account password. The server never stores the
+// key (the password reaches it only at sign-in, to be checked); it only checks that each item is written with the current key id, so a
 // device with a stale key cannot mix keys within one collection.
 //
 // Conflicts on an item: the newest `updatedAt` (device clock) wins. A push the

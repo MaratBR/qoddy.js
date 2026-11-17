@@ -67,8 +67,13 @@ async function main(argv: string[]): Promise<void> {
 		}
 		case 'set-password':
 			need(1);
-			await setPassword(db(), args[0], await stdinPassword());
-			console.log('password changed');
+			if (await setPassword(db(), args[0], await stdinPassword())) {
+				console.log(
+					'password changed; their thoughts stay encrypted with the old password, which they need once to read them again'
+				);
+			} else {
+				console.log('password changed');
+			}
 			break;
 		case 'set-role':
 			need(2);

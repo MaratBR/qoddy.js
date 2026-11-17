@@ -114,7 +114,8 @@ export const en = {
 	},
 
 	unlock: {
-		prompt: 'Your thoughts are locked with a password. Enter it to read them on this device.',
+		prompt:
+			'Your thoughts are encrypted with your account password. Enter it to read them on this device. If your password was reset since, enter the one you had before.',
 		unlocking: 'Unlocking…',
 		unlock: 'Unlock',
 		failed: 'Could not unlock.'
@@ -128,26 +129,26 @@ export const en = {
 		signOutConfirm: (n: number) =>
 			`${n === 1 ? '1 of your changes has' : `${n} of your changes have`} not reached the server yet and will be lost. Sign out anyway?`,
 		couldNotSignOut: 'Could not sign out.',
-		lock: 'Thought lock',
+		lock: 'Encryption',
 		lockedInfo:
-			'Your thoughts are encrypted on your devices before they are sent, with a key made from your password. The server cannot read them.',
+			'Your thoughts are encrypted on your devices before they are sent, with a key made from your account password. The server keeps them encrypted and never stores your password or the key. Signing in opens them.',
 		lockOffer:
-			'Lock your thoughts with a password: they are encrypted on your devices before they are sent, and the server cannot read them. If you forget the password, nobody can recover them.',
-		newPassword: 'New password',
-		repeat: 'Repeat it',
-		tooShort: 'Use at least 8 characters.',
-		mismatch: 'The passwords do not match.',
-		removeConfirm: 'Remove the lock? Your thoughts will be stored unencrypted.',
-		removed: 'The lock is removed.',
-		changed: 'Password changed.',
-		locked: 'Your thoughts are locked.',
-		couldNotChangeLock: 'Could not change the lock.',
+			'Encrypt your thoughts with your account password: they are encrypted on your devices before they are sent, and signing in opens them. If you forget your password, a reset gets you back into your account but not into these thoughts.',
+		accountPassword: 'Your account password',
+		lockWithPassword: 'Encrypt my thoughts',
+		locked: 'Your thoughts are encrypted.',
+		rekeyQuestion: 'Was your account password reset?',
+		rekeyHint:
+			'Encrypt your thoughts again with your current account password, so signing in opens them.',
+		rekey: 'Re-encrypt',
+		rekeyed: 'Your thoughts are encrypted with your current password.',
+		removeConfirm: 'Turn encryption off? Your thoughts will be stored unencrypted.',
+		removed: 'Encryption is off.',
+		removeLock: 'Turn encryption off',
+		couldNotChangeLock: 'Could not change the encryption.',
 		encrypting: 'Encrypting…',
-		changePassword: 'Change password',
-		lockWithPassword: 'Lock with password',
-		removeLock: 'Remove the lock',
 		lockDevice: 'Lock this device now',
-		lockNeedsConnection: 'Changing the lock needs a connection.',
+		lockNeedsConnection: 'Changing the encryption needs a connection.',
 		signIn: 'Sign in',
 		createHeading: 'Create an account',
 		createButton: 'Create account',
@@ -183,7 +184,7 @@ export const en = {
 		privacy: 'Privacy',
 		export: 'Export',
 		lockNeedsAccount:
-			'Signed in, you can lock your thoughts with a password, so they are encrypted before they leave your devices.'
+			'Signed in, you can encrypt your thoughts with your account password before they leave your devices.'
 	},
 
 	appearance: {
@@ -399,7 +400,7 @@ export const en = {
 		full: 'Your collection is full: some thoughts stay on this device only.',
 		unlockFirst: 'Unlock your thoughts on this device first.',
 		wrongLockPassword: 'That password does not open your thoughts.',
-		signInToLock: 'Sign in to lock your thoughts.',
+		signInToLock: 'Sign in to encrypt your thoughts.',
 		changedElsewhere: 'Your thoughts changed on another device. Try again.',
 		unlockToExport: 'Unlock your thoughts on this device to export them.',
 		otherAccount: (owner: string | null) =>
@@ -408,6 +409,7 @@ export const en = {
 
 	serverErrors: {
 		wrong_password: 'Wrong email or password.',
+		not_your_password: 'That is not your account password.',
 		email_invalid: 'Enter a valid email address.',
 		email_taken: 'An account with this email already exists.',
 		name_invalid: 'Enter a name (up to 100 characters).',

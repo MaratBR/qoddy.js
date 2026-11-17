@@ -1,4 +1,4 @@
-// Locking a personal collection with a password, entirely in the browser.
+// Locking a personal collection with the account password, entirely in the browser.
 //
 // PBKDF2-SHA-256 (600k iterations) turns the password into an AES-GCM-256 key
 // that never leaves the device (it is stored non-extractable). Each item is

@@ -8,6 +8,7 @@ export const MIN_PASSWORD = 8;
 /** Failures the reader can act on; the client shows them in the reader's language. */
 export type ErrorCode =
 	| 'wrong_password'
+	| 'not_your_password'
 	| 'email_invalid'
 	| 'email_taken'
 	| 'name_invalid'
@@ -24,7 +25,10 @@ export interface ApiError {
 	code?: ErrorCode;
 }
 
-/** Encryption parameters for a locked personal collection. */
+/**
+ * Encryption parameters for a locked personal collection. The key comes from
+ * the reader's account password (versions before 2026-11 used a separate one).
+ */
 export interface Lock {
 	/** Id of the key every item is encrypted with. */
 	key: string;

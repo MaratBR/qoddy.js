@@ -60,13 +60,14 @@ A thought is its text plus optional fields:
 
 ### Locking your thoughts
 
-On **Account → Privacy → Thought lock**, a signed-in reader can set a password for their thoughts. It is separate from the account password.
+On **Account → Privacy → Encryption**, a signed-in reader can encrypt their thoughts with their account password. There is no second password: signing in on any device opens them.
 
-- **How it is encrypted:** each thought is encrypted in the browser with AES-GCM-256 before it leaves the device. The key comes from the password via PBKDF2-SHA256 with 600,000 iterations and a random salt. Each item is bound to its id, so the server cannot swap ciphertexts between items.
-- **What the server stores:** the salt, a check value and the ciphertext. It never sees the password or the key.
-- **On a device:** the derived key is kept as a non-extractable `CryptoKey` in IndexedDB until **Lock this device now** or sign-out.
-- **Changing or removing the password:** this re-encrypts everything and sends it as one atomic change. If another device changed the lock meanwhile, the server refuses the whole change and the device starts over from the new lock.
-- **Forgotten password:** there is no recovery, and the locked thoughts are lost. The account itself can still be used.
+- **Turning it on:** the reader enters their account password once. The server checks it (`/api/auth` `verify`) before anything is encrypted, so a typo cannot lock the thoughts away.
+- **How it is encrypted:** each thought is encrypted in the browser with AES-GCM-256 before it leaves the device. The key comes from the password via PBKDF2-SHA256 with 600,000 iterations and a random salt of its own, unrelated to the server's scrypt hash. Each item is bound to its id, so the server cannot swap ciphertexts between items.
+- **What the server stores:** the salt, a check value and the ciphertext, never the key. It does receive the password at sign-in (that is how it checks it), so the encryption protects against a leaked database or backup, not against whoever runs the server.
+- **On a device:** signing in derives the key; it is kept as a `CryptoKey` in IndexedDB until **Lock this device now** or sign-out. A locked device asks for the account password again.
+- **Turning it off:** this re-encrypts everything (or stores it plain) and sends it as one atomic change. If another device changed the lock meanwhile, the server refuses the whole change and the device starts over from the new lock.
+- **Password reset** (`pnpm qoddy set-password`): the thoughts stay encrypted with the old password. The reader enters it once to open them, then **Re-encrypt** with the new one. Without the old password they are lost; the account itself can still be used.
 
 ### Your data
 
@@ -218,7 +219,7 @@ scripts/deploy.sh --build remote user@host     # send the source and build there
 - **Passwords:** scrypt (N=2^15) with a random salt per user. Unknown emails still run a hash check, so a failed sign-in takes about the same time either way. Passwords over 1024 characters are refused before hashing.
 - **Sign-in throttling:** after 10 wrong passwords for one email within 15 minutes, that email is refused (429) until the window passes. It is per email, so it works behind a proxy; the cost is that a stranger can hold one email's sign-in shut for a while (signed-in devices keep working). In memory: a restart forgets it.
 - **Quotas:** a reader keeps at most 5,000 thoughts and 32 MB of synced data.
-- **Personal thoughts:** the server stores them as given and never interprets them. Locked collections are end-to-end encrypted (see above).
+- **Personal thoughts:** the server stores them as given and never interprets them. Locked collections are encrypted in the browser (see above).
 - **Headers:** `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY`.
 
 ## Compared with the Rust version

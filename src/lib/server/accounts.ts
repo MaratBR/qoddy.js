@@ -166,7 +166,12 @@ export function setRole(db: Db, email: string, role: Role): User {
 	return { ...user, role };
 }
 
-export async function setPassword(db: Db, email: string, password: string): Promise<void> {
+/**
+ * Sets an account's password. Returns whether the account's thoughts are
+ * encrypted: they stay encrypted with the old password, which the reader
+ * needs once to re-encrypt them with the new one.
+ */
+export async function setPassword(db: Db, email: string, password: string): Promise<boolean> {
 	const user = findUserByEmail(db, email);
 	if (!user) throw new Invalid(`No account with email ${email}.`);
 	if ([...password].length < MIN_PASSWORD)
@@ -178,6 +183,10 @@ export async function setPassword(db: Db, email: string, password: string): Prom
 	);
 	// A new password signs every device out.
 	db.prepare('DELETE FROM session WHERE user_id = ?').run(user.id);
+	return (
+		db.prepare('SELECT 1 FROM personal WHERE user_id = ? AND lock IS NOT NULL').get(user.id) !==
+		undefined
+	);
 }
 
 /** Saves the reader's language; unknown ids clear it. */

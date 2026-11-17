@@ -15,6 +15,7 @@ import {
 	signInThrottled,
 	listAccounts,
 	sessionUser,
+	setPassword,
 	signUp,
 	type User
 } from './accounts.ts';
@@ -418,6 +419,27 @@ describe('sync', () => {
 			since: 0,
 			mineSince: 0
 		});
+	});
+});
+
+describe('password reset', () => {
+	it('says whether the thoughts stay encrypted with the old password', async () => {
+		const user = await createUser(db, { email: 'p@x.y', name: 'P', password: '12345678' });
+		expect(await setPassword(db, user.email, 'another one')).toBe(false);
+		const lock: Lock = {
+			key: 'keykeykey1',
+			salt: 'c2FsdA==',
+			iterations: 600_000,
+			check: { iv: 'aXY=', data: 'ZGF0YQ==' }
+		};
+		sync(db, user, {
+			db: databaseId(db),
+			since: 0,
+			mineSince: 0,
+			mine: { lock: { base: 0, value: lock }, items: [] }
+		});
+		expect(await setPassword(db, user.email, 'a third one')).toBe(true);
+		expect(await authenticate(db, user.email, 'a third one')).not.toBeNull();
 	});
 });
 

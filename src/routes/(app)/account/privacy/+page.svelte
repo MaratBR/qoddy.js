@@ -1,6 +1,6 @@
 <script lang="ts">
-	// Account → Privacy: the password that encrypts your thoughts in the
-	// account (signed in), and the app lock on this device.
+	// Account → Privacy: encrypting your thoughts in the account with your
+	// account password (signed in), and the app lock on this device.
 	import { library, LibraryError } from '#lib/client/library.svelte.ts';
 	import { t } from '#lib/client/i18n.svelte.ts';
 	import SettingsPage from '#lib/components/SettingsPage.svelte';
@@ -9,31 +9,23 @@
 
 	type Failure = { message: string; field?: string } | null;
 
-	let newPassword = $state('');
-	let repeat = $state('');
+	let password = $state('');
 	let lockError = $state<Failure>(null);
 	let lockBusy = $state(false);
 	let lockDone = $state<string | null>(null);
 
+	/** Encrypts with the account password (again, when already on), or turns encryption off. */
 	async function changeLock(event: SubmitEvent | null, remove = false) {
 		event?.preventDefault();
 		lockError = null;
 		lockDone = null;
-		if (!remove && newPassword.length < 8) {
-			lockError = { message: t.account.tooShort, field: 'new' };
-			return;
-		}
-		if (!remove && newPassword !== repeat) {
-			lockError = { message: t.account.mismatch, field: 'repeat' };
-			return;
-		}
 		if (remove && !confirm(t.account.removeConfirm)) return;
 		lockBusy = true;
 		try {
 			const had = Boolean(library.lock);
-			await library.setLock(remove ? null : newPassword);
-			newPassword = repeat = '';
-			lockDone = remove ? t.account.removed : had ? t.account.changed : t.account.locked;
+			await library.setLock(remove ? null : password);
+			password = '';
+			lockDone = remove ? t.account.removed : had ? t.account.rekeyed : t.account.locked;
 		} catch (thrown) {
 			lockError =
 				thrown instanceof LibraryError
@@ -54,52 +46,52 @@
 			<Unlock />
 		{:else}
 			<p>{library.lock ? t.account.lockedInfo : t.account.lockOffer}</p>
-			<form onsubmit={(event) => changeLock(event)}>
-				<!-- Lets password managers file the new password under this account. -->
-				<input
-					class="visually-hidden"
-					autocomplete="username"
-					value={library.me.email}
-					readonly
-					tabindex="-1"
-					aria-hidden="true"
-				/>
-				<label class="field">
-					<span>{library.lock ? t.account.newPassword : t.common.password}</span>
-					<input type="password" autocomplete="new-password" bind:value={newPassword} />
-					{#if lockError?.field === 'new'}<span class="error">{lockError.message}</span>{/if}
-				</label>
-				<label class="field">
-					<span>{t.account.repeat}</span>
-					<input type="password" autocomplete="new-password" bind:value={repeat} />
-					{#if lockError?.field === 'repeat'}<span class="error">{lockError.message}</span>{/if}
-				</label>
-				{#if lockError && !lockError.field}<p class="error" role="alert">
-						{lockError.message}
-					</p>{/if}
-				{#if lockDone}<p role="status">{lockDone}</p>{/if}
-				<div class="row">
+			{#snippet passwordForm(button: string)}
+				<form onsubmit={(event) => changeLock(event)}>
+					<!-- Lets password managers offer this account's password. -->
+					<input
+						class="visually-hidden"
+						autocomplete="username"
+						value={library.me?.email}
+						readonly
+						tabindex="-1"
+						aria-hidden="true"
+					/>
+					<label class="field">
+						<span>{t.account.accountPassword}</span>
+						<input type="password" autocomplete="current-password" required bind:value={password} />
+						{#if lockError?.field === 'password'}<span class="error">{lockError.message}</span>{/if}
+					</label>
 					<button class="button" disabled={lockBusy || !library.online}>
-						{lockBusy
-							? t.account.encrypting
-							: library.lock
-								? t.account.changePassword
-								: t.account.lockWithPassword}
+						{lockBusy ? t.account.encrypting : button}
 					</button>
-					{#if library.lock}
-						<button
-							type="button"
-							class="link"
-							disabled={lockBusy || !library.online}
-							onclick={() => changeLock(null, true)}>{t.account.removeLock}</button
-						>
-						<button type="button" class="link" onclick={() => library.lockDevice()}
-							>{t.account.lockDevice}</button
-						>
-					{/if}
+				</form>
+			{/snippet}
+			{#if library.lock}
+				<div class="row">
+					<button
+						type="button"
+						class="link"
+						disabled={lockBusy || !library.online}
+						onclick={() => changeLock(null, true)}>{t.account.removeLock}</button
+					>
+					<button type="button" class="link" onclick={() => library.lockDevice()}
+						>{t.account.lockDevice}</button
+					>
 				</div>
-				{#if !library.online}<p class="hint">{t.account.lockNeedsConnection}</p>{/if}
-			</form>
+				<details class="rekey">
+					<summary class="link">{t.account.rekeyQuestion}</summary>
+					<p class="hint">{t.account.rekeyHint}</p>
+					{@render passwordForm(t.account.rekey)}
+				</details>
+			{:else}
+				{@render passwordForm(t.account.lockWithPassword)}
+			{/if}
+			{#if lockError && lockError.field !== 'password'}<p class="error" role="alert">
+					{lockError.message}
+				</p>{/if}
+			{#if lockDone}<p role="status">{lockDone}</p>{/if}
+			{#if !library.online}<p class="hint">{t.account.lockNeedsConnection}</p>{/if}
 		{/if}
 	</section>
 
@@ -108,3 +100,40 @@
 		<AppLockSettings />
 	</section>
 </SettingsPage>
+
+<style>
+	.rekey {
+		margin-top: 1rem;
+		max-width: 26rem;
+	}
+	.rekey[open] > summary {
+		margin-bottom: 0.25rem;
+	}
+	.rekey > .hint {
+		margin: 0 0 1rem;
+	}
+	summary {
+		list-style: none;
+	}
+	summary::-webkit-details-marker {
+		display: none;
+	}
+	/* A chevron that turns down when open, so the line reads as something that unfolds. */
+	summary::after {
+		content: '';
+		width: 0.4em;
+		height: 0.4em;
+		border-right: 2px solid currentColor;
+		border-bottom: 2px solid currentColor;
+		transform: rotate(-45deg);
+		transition: transform 0.2s var(--ease);
+	}
+	.rekey[open] > summary::after {
+		transform: translateY(-0.15em) rotate(45deg);
+	}
+	@media (prefers-reduced-motion: reduce) {
+		summary::after {
+			transition: none;
+		}
+	}
+</style>
