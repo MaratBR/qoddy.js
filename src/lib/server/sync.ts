@@ -298,7 +298,7 @@ function pull(
 		db
 			.prepare(
 				`SELECT t.id, t.seq, t.collection_id, t.text, t.author, t.source, t.notes, t.lang, t.theme,
-					t.color, t.font, t.deleted, c.hidden
+					t.color, t.font, unixepoch(t.created_at) * 1000 AS added, t.deleted, c.hidden
 				FROM thought t JOIN collection c ON c.id = t.collection_id
 				WHERE t.rev > ? ORDER BY t.seq`
 			)

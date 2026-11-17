@@ -196,8 +196,17 @@ describe('collections', () => {
 		expect(browseThoughts(db, defaultId(), { search: '%' }).total).toBe(1);
 		expect(browseThoughts(db, defaultId(), { search: 'ann' }).total).toBe(1);
 
+		db.prepare(`UPDATE thought SET created_at = '2020-01-01 00:00:00' WHERE id = ?`).run(a.id);
 		const moved = updateThought(db, a.id, stoics.id, { text: 'First, edited' });
 		expect(moved.seq).toBeGreaterThan(b.seq);
+		const joined = (id: string) =>
+			(db.prepare('SELECT created_at FROM thought WHERE id = ?').get(id) as { created_at: string })
+				.created_at;
+		expect(joined(a.id)).not.toBe('2020-01-01 00:00:00');
+		updateThought(db, a.id, stoics.id, { text: 'First, again' });
+		db.prepare(`UPDATE thought SET created_at = '2020-01-01 00:00:00' WHERE id = ?`).run(a.id);
+		updateThought(db, a.id, stoics.id, { text: 'First, once more' });
+		expect(joined(a.id)).toBe('2020-01-01 00:00:00');
 		expect(browseThoughts(db, stoics.id).total).toBe(1);
 
 		deleteThought(db, b.id);
@@ -261,6 +270,8 @@ describe('sync', () => {
 		const second = sync(db, null, { db: dbId(), since: first.rev, mineSince: 0 });
 		expect(second.settings).toBeUndefined();
 		expect(second.thoughts.map((x) => x.id)).toEqual([t.id]);
+		// When it joined: readers' earlier days leave it out.
+		expect(Math.abs(second.thoughts[0].added! - Date.now())).toBeLessThan(5000);
 
 		deleteThought(db, t.id);
 		const third = sync(db, null, { db: dbId(), since: second.rev, mineSince: 0 });

@@ -194,6 +194,17 @@ describe('days', () => {
 		expect(ofTheDay([], '2026-01-01')).toBeUndefined();
 		expect(ofTheDay(items, '1960-01-01')).toBeDefined();
 	});
+
+	it('keeps earlier days when an item is added', () => {
+		const joined: Record<string, string> = { a: '', b: '2026-01-01', c: '2026-01-01' };
+		const since = (item: string) => joined[item] ?? '';
+		const days = ['2026-01-05', '2026-01-06', '2026-01-07'];
+		const before = days.map((day) => ofTheDay(['a', 'b', 'c'], day, since));
+		joined.d = '2026-01-08';
+		const after = days.map((day) => ofTheDay(['a', 'b', 'c', 'd'], day, since));
+		expect(after).toEqual(before);
+		expect(ofTheDay(['b'], '2025-12-31', since)).toBeUndefined();
+	});
 });
 
 describe('thought', () => {

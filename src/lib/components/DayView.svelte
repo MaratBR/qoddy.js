@@ -23,17 +23,24 @@
 	let notesView: Notes | undefined = $state();
 
 	const now = today();
-	/** The furthest back a reader can go: a week. */
-	const earliest = addDays(now, -6);
-	const date = $derived.by(() => {
-		const asked = page.url.searchParams.get('d') ?? '';
-		return isDate(asked) && asked >= earliest && asked < now ? asked : now;
-	});
 	const source = $derived(library.source(slug));
 	const mine = $derived(source?.mine ?? false);
 	const locked = $derived(mine && library.locked && library.sealed > 0);
 	const thoughts = $derived<readonly (MyThought | PublicThought)[]>(source?.thoughts ?? []);
-	const daily = $derived(ofTheDay(thoughts, date));
+	/** The day a thought joined this source; '' for always. */
+	const since = (thought: MyThought | PublicThought) =>
+		thought.added ? today(new Date(thought.added)) : '';
+	/** The furthest back a reader can go: a week, and not before the first thought. */
+	const earliest = $derived.by(() => {
+		const first = thoughts.map(since).reduce((min, day) => (day < min ? day : min), now);
+		const week = addDays(now, -6);
+		return first > week ? first : week;
+	});
+	const date = $derived.by(() => {
+		const asked = page.url.searchParams.get('d') ?? '';
+		return isDate(asked) && asked >= earliest && asked < now ? asked : now;
+	});
+	const daily = $derived(ofTheDay(thoughts, date, since));
 	/** A thought picked at random (`?t=<id>`), shown instead of the day's. */
 	const asked = $derived(page.url.searchParams.get('t') ?? '');
 	const thought = $derived(thoughts.find((other) => other.id === asked) ?? daily);

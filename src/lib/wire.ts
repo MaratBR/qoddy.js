@@ -70,6 +70,8 @@ export interface PublicThought extends ThoughtFields {
 	/** Rotation order within the collection. */
 	seq: number;
 	collection_id: number;
+	/** When it joined its collection (ms). Older servers and cached copies lack it: always there. */
+	added?: number;
 }
 
 export interface Me {

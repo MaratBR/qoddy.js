@@ -69,6 +69,8 @@ export interface MyThought extends ThoughtFields {
 	place: Place;
 	/** When it was written (ms): the rotation order. */
 	created: number;
+	/** When it joined its collection (ms): earlier days do not show it. */
+	added: number;
 	updatedAt: number;
 	/** The public thought this was kept from, if any. */
 	from: string | null;
@@ -104,6 +106,8 @@ export type Source =
 /** What a personal record's JSON holds: a thought, or (`kind`) one of your collections. */
 type MinePayload = ThoughtFields & {
 	created: number;
+	/** When it moved into its collection; absent: when it was written. */
+	added?: number;
 	from: string | null;
 	/** Your collection it is in; absent, or one that no longer exists: Your thoughts. */
 	collection?: string | null;
@@ -909,6 +913,7 @@ class Library {
 					id: record.id,
 					place: record.local || !account ? 'device' : record.dirty ? 'pending' : 'account',
 					created,
+					added: Number(thought.added) || created,
 					updatedAt: record.updatedAt,
 					from: typeof thought.from === 'string' ? thought.from : null,
 					collection: typeof thought.collection === 'string' ? thought.collection : null
@@ -948,9 +953,14 @@ class Library {
 		const id = options.id ?? newId();
 		const previous = this.mine.find((thought) => thought.id === id);
 		const collection = options.collection !== undefined ? options.collection : previous?.collection;
+		const created = previous?.created ?? Date.now();
+		// Moved into another collection: it joins that one now.
+		const added =
+			previous && previous.collection !== (collection ?? null) ? Date.now() : previous?.added;
 		const payload: MinePayload = {
 			...checked.value,
-			created: previous?.created ?? Date.now(),
+			created,
+			...(added && added !== created ? { added } : {}),
 			from: options.from ?? previous?.from ?? null,
 			...(collection ? { collection } : {})
 		};

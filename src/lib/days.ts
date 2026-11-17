@@ -32,12 +32,19 @@ export function addDays(date: string, days: number): string {
 
 /**
  * The item for `date`: each day shows the next one in order, wrapping around.
- * `items` must already be in the collection's order.
+ * `items` must already be in the collection's order. `since` gives the date an
+ * item joined (`''`: always there); a day picks only from items there by then,
+ * so adding one never changes an earlier day.
  */
-export function ofTheDay<T>(items: readonly T[], date: string): T | undefined {
-	if (items.length === 0) return undefined;
-	const n = items.length;
-	return items[((dayNumber(date) % n) + n) % n];
+export function ofTheDay<T>(
+	items: readonly T[],
+	date: string,
+	since: (item: T) => string = () => ''
+): T | undefined {
+	const there = items.filter((item) => since(item) <= date);
+	const n = there.length;
+	if (n === 0) return undefined;
+	return there[((dayNumber(date) % n) + n) % n];
 }
 
 /** 1 for 1 January. */

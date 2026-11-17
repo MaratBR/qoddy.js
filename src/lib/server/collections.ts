@@ -215,7 +215,10 @@ export function addThought(db: Db, collectionId: number, input: Record<string, u
 	});
 }
 
-/** Edits a thought; moving it to another collection puts it last there. */
+/**
+ * Edits a thought; moving it to another collection puts it last there and
+ * restarts `created_at`, the date it joined: readers' earlier days stay as they were.
+ */
 export function updateThought(
 	db: Db,
 	id: string,
@@ -231,7 +234,8 @@ export function updateThought(
 		db.prepare(
 			`UPDATE thought SET collection_id = ?, text = ?, author = ?, source = ?, notes = ?, lang = ?,
 				theme = ?, color = ?, font = ?, rev = ?,
-				seq = CASE WHEN ? THEN (SELECT max(seq) + 1 FROM thought) ELSE seq END
+				seq = CASE WHEN ? THEN (SELECT max(seq) + 1 FROM thought) ELSE seq END,
+				created_at = CASE WHEN ? THEN datetime('now') ELSE created_at END
 			WHERE id = ?`
 		).run(
 			collectionId,
@@ -244,6 +248,7 @@ export function updateThought(
 			value.color,
 			value.font,
 			nextRev(db),
+			+moved,
 			+moved,
 			id
 		);
