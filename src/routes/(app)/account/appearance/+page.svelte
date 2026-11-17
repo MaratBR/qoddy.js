@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Account → Appearance: light or dark, color (the accent), theme (all the
-	// rest), paper, what the home page shows, and the language. Kept on this
-	// device; the language also in the account.
+	// rest), paper, how this device reads (thoughts' own looks, focus mode,
+	// double click), and the language.
 	import { library } from '#lib/client/library.svelte.ts';
 	import { t } from '#lib/client/i18n.svelte.ts';
 	import SettingsPage from '#lib/components/SettingsPage.svelte';
@@ -21,9 +21,6 @@
 	] as const;
 	/** Where the accent starts when the reader first picks their own. */
 	const DEFAULT_ACCENT = '#2f5d9e';
-
-	/** Without a home collection set by the site, home always shows the reader's own thoughts. */
-	const siteHome = $derived(library.collections.find((c) => c.id === library.settings.home));
 </script>
 
 <SettingsPage title={t.account.appearance}>
@@ -92,21 +89,39 @@
 		</div>
 	</section>
 
-	{#if siteHome}
-		<section>
-			<h2 class="label">{t.menu.home}</h2>
-			<div class="segmented" role="radiogroup" aria-label={t.menu.home}>
-				{#each [false, true] as value (value)}
-					<button
-						role="radio"
-						aria-checked={library.homeMine === value}
-						onclick={() => library.setHomeMine(value)}
-						>{value ? t.common.yourThoughts : siteHome.name}</button
-					>
-				{/each}
-			</div>
-		</section>
-	{/if}
+	<section>
+		<h2 class="label">{t.appearance.device}</h2>
+		<div class="switches">
+			<label class="switch-row">
+				{t.appearance.plainLooks}
+				<input
+					type="checkbox"
+					role="switch"
+					checked={library.plainLooks}
+					onchange={(event) => library.setPlainLooks(event.currentTarget.checked)}
+				/>
+			</label>
+			<label class="switch-row">
+				{t.appearance.focus}
+				<input
+					type="checkbox"
+					role="switch"
+					checked={library.focus}
+					onchange={(event) => library.setFocus(event.currentTarget.checked)}
+				/>
+			</label>
+			<label class="switch-row">
+				{t.appearance.doubleClick}
+				<input
+					type="checkbox"
+					role="switch"
+					checked={library.doubleClickRandom}
+					onchange={(event) => library.setDoubleClickRandom(event.currentTarget.checked)}
+				/>
+			</label>
+		</div>
+		<p class="hint">{t.appearance.deviceHint}</p>
+	</section>
 
 	<section>
 		<h2 class="label">{t.menu.language}</h2>
@@ -118,6 +133,10 @@
 <style>
 	.segmented {
 		display: flex;
+	}
+	.switches {
+		display: grid;
+		gap: 0.5rem;
 	}
 	.colors {
 		display: grid;

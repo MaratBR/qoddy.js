@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Account: who you are (or the form to sign in or create an account), then
-	// the settings as a list of pages: appearance, privacy, your data.
+	// the settings as a list of pages: appearance, collections, privacy, your data.
 	import { library, LibraryError, UnsyncedError } from '#lib/client/library.svelte.ts';
 	import { i18n, t } from '#lib/client/i18n.svelte.ts';
 	import { findTheme, THEMES } from '#lib/themes.ts';
@@ -136,6 +136,13 @@
 				<a href="/account/appearance">
 					<span class="title">{t.account.appearance}</span>
 					<span class="count">{t.themes[theme.id] ?? theme.name}</span>
+					<Icon name="chevron" />
+				</a>
+			</li>
+			<li>
+				<a href="/account/collections">
+					<span class="title">{t.collections.title}</span>
+					<span class="count">{library.myCollections.length + 1}</span>
 					<Icon name="chevron" />
 				</a>
 			</li>

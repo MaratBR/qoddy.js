@@ -20,6 +20,13 @@
 // reader's word first (`UnsyncedError`), and a server restored from a backup
 // gets this device's thoughts again rather than losing them.
 //
+// Signed in, a reader can keep a thought on this device only (`local`): it
+// leaves the account (a tombstone goes up through the usual sync), is stored
+// plainly here, and the server's copy of it is ignored from then on. A local
+// tombstone does the opposite: it hides the account's copy on this device.
+// Local thoughts belong to the device, not the account: signing out, or
+// another account signing in, keeps them.
+//
 // The app lock (this device only) encrypts everything stored here with a key
 // opened by a passcode or password; until it is opened, nothing is loaded.
 
@@ -54,21 +61,68 @@ import type {
 	SyncResponse
 } from '../wire.ts';
 
+/** Where one of your thoughts is kept: in the account, on its way there, or on this device only. */
+export type Place = 'account' | 'pending' | 'device';
+
 export interface MyThought extends ThoughtFields {
 	id: string;
+	place: Place;
 	/** When it was written (ms): the rotation order. */
 	created: number;
 	updatedAt: number;
 	/** The public thought this was kept from, if any. */
 	from: string | null;
+	/** Your collection it is in; null for Your thoughts. */
+	collection: string | null;
 }
 
-/** What a personal record's JSON holds. */
-type MinePayload = ThoughtFields & { created: number; from: string | null };
+/** One of your own collections besides Your thoughts (`/c/mine.<id>`). */
+export interface MyCollection {
+	id: string;
+	slug: string;
+	name: string;
+	created: number;
+}
+
+/** Somewhere to read thoughts from: a public collection, Your thoughts, or another of yours. */
+export type Source =
+	| {
+			slug: string;
+			name: string;
+			mine: false;
+			collection: PublicCollection;
+			thoughts: PublicThought[];
+	  }
+	| {
+			slug: string;
+			name: string;
+			mine: true;
+			collection: MyCollection | null;
+			thoughts: MyThought[];
+	  };
+
+/** What a personal record's JSON holds: a thought, or (`kind`) one of your collections. */
+type MinePayload = ThoughtFields & {
+	created: number;
+	from: string | null;
+	/** Your collection it is in; absent, or one that no longer exists: Your thoughts. */
+	collection?: string | null;
+};
+type CollectionPayload = { kind: 'collection'; name: string; created: number };
+
+/** Your thoughts' own address; your other collections are `mine.<id>`. */
+export const MINE = 'mine';
+const MINE_PREFIX = 'mine.';
+export const COLLECTION_NAME_LIMIT = 80;
 
 interface MineRecord extends MineItem {
 	/** Changed here and not yet saved on the server. */
 	dirty: boolean;
+	/**
+	 * Kept on this device only: never sent, always plain JSON, and the server's
+	 * copy is ignored. Deleted, it hides the account's copy here. Older records lack it.
+	 */
+	local?: boolean;
 }
 
 interface State {
@@ -82,6 +136,8 @@ interface State {
 	ownerEmail: string | null;
 	lock: Lock | null;
 	lockRev: number;
+	/** Thoughts removed from the account but kept here: their tombstones (id → updatedAt) still to send. */
+	unsend: Record<string, number>;
 	me: Me | null;
 	settings: PublicSettings;
 	/** The reader changed their theme while signed in and it has not synced yet. */
@@ -109,6 +165,7 @@ const INITIAL: State = {
 	ownerEmail: null,
 	lock: null,
 	lockRev: 0,
+	unsend: {},
 	me: null,
 	settings: DEFAULT_SETTINGS,
 	themeDirty: false,
@@ -122,6 +179,11 @@ const MODE_KEY = 'qoddy.mode';
 const HOME_KEY = 'qoddy.home';
 const ACCENT_KEY = 'qoddy.accent';
 const TONE_KEY = 'qoddy.tone';
+const PLAIN_LOOKS_KEY = 'qoddy.plainLooks';
+const FOCUS_KEY = 'qoddy.focus';
+const DOUBLE_CLICK_KEY = 'qoddy.doubleClick';
+const HIDE_SHARED_KEY = 'qoddy.hideShared';
+const HIDDEN_KEY = 'qoddy.hidden';
 const SYNC_EVERY = 5 * 60_000;
 /** The app lock's settings in `meta`, stored unencrypted. */
 const APP_LOCK = 'applock';
@@ -174,12 +236,16 @@ class Library {
 	collections = $state.raw<PublicCollection[]>([]);
 	/** Public thoughts by id. */
 	thoughts = $state.raw<Map<string, PublicThought>>(new Map());
-	/** Your readable thoughts, oldest first. */
+	/** Your readable thoughts, oldest first, in every collection of yours. */
 	mine = $state.raw<MyThought[]>([]);
+	/** Your collections besides Your thoughts, oldest first. */
+	myCollections = $state.raw<MyCollection[]>([]);
 	/** Your thoughts this device cannot read until you unlock. */
 	sealed = $state(0);
 	/** Your changes not yet on the server (signed in only). */
 	pending = $state(0);
+	/** Account thoughts removed from this device only (local tombstones). */
+	hiddenHere = $state(0);
 	/** How the app lock opens on this device, if it is on. */
 	appLock = $state<AppLock['kind'] | null>(null);
 	/** The app lock is on and not yet opened: nothing is loaded. */
@@ -188,10 +254,20 @@ class Library {
 	/** This device's theme choice (signed out), or the last one seen from the account. */
 	#deviceTheme = $state<string | null>(null);
 	mode = $state<Mode>(null);
-	/** This device puts your own thoughts on the home page, whatever the site's choice. */
-	homeMine = $state(false);
+	/** The collection this device puts on the home page (a source slug); null for the site's. */
+	homeChoice = $state<string | null>(null);
+	/** This device hides every public collection. */
+	hideShared = $state(false);
+	/** Public collections this device hides, by id. */
+	#hidden = $state<number[]>([]);
 	#deviceAccent = $state<string | null>(null);
 	#deviceTone = $state<string | null>(null);
+	/** This device sets every thought in the reader's own theme, ignoring a thought's look. */
+	plainLooks = $state(false);
+	/** This device shows the reading pages with few, muted controls. */
+	focus = $state(false);
+	/** On this device, a double click (or tap) on a thought shows another at random. */
+	doubleClickRandom = $state(false);
 
 	#records = new Map<string, MineRecord>();
 	#keys = new Map<string, CryptoKey>();
@@ -264,13 +340,63 @@ class Library {
 		return this.collections.find((collection) => collection.slug === slug);
 	}
 
-	/** The collection whose thought of the day is the home page; null for your own thoughts. */
-	get homeId(): number | null {
-		return this.homeMine ? null : this.#state.settings.home;
+	/** This device hides the public collection (one by one, or all of them). */
+	hides(collectionId: number): boolean {
+		return this.hideShared || this.#hidden.includes(collectionId);
 	}
 
-	isHome(collection: PublicCollection): boolean {
-		return collection.id === this.homeId;
+	/** Public collections this device shows. */
+	get shownCollections(): PublicCollection[] {
+		return this.collections.filter((collection) => !this.hides(collection.id));
+	}
+
+	/**
+	 * Where the thoughts at `/c/<slug>` come from: Your thoughts (`mine`), another
+	 * of your collections (`mine.<id>`), or a public collection (hidden ones too:
+	 * a link still opens them).
+	 */
+	source(slug: string): Source | undefined {
+		if (slug === MINE || slug.startsWith(MINE_PREFIX)) {
+			const collection = slug === MINE ? null : this.myCollections.find((c) => c.slug === slug);
+			if (collection === undefined) return undefined;
+			const id = collection?.id ?? null;
+			return {
+				slug,
+				name: collection?.name ?? t.common.yourThoughts,
+				mine: true,
+				collection,
+				thoughts: this.mine.filter((thought) => thought.collection === id)
+			};
+		}
+		const collection = this.collection(slug);
+		if (!collection) return undefined;
+		return {
+			slug,
+			name: collection.name,
+			mine: false,
+			collection,
+			thoughts: this.thoughtsIn(collection.id)
+		};
+	}
+
+	/**
+	 * The home page's source: this device's choice while it exists and is shown,
+	 * else the site's home collection (an empty slug until it syncs), else Your thoughts.
+	 */
+	get homeSlug(): string {
+		const choice = this.homeChoice;
+		if (choice) {
+			const source = this.source(choice);
+			if (source && (source.mine || !this.hides(source.collection.id))) return choice;
+		}
+		const site = this.#state.settings.home;
+		if (site === null || this.hides(site)) return MINE;
+		return this.collections.find((c) => c.id === site)?.slug ?? '';
+	}
+
+	/** Where a source is read: home, or its own page. */
+	href(slug: string): string {
+		return slug === this.homeSlug ? '/' : `/c/${slug}`;
 	}
 
 	/** A collection's thoughts in rotation order. */
@@ -284,6 +410,13 @@ class Library {
 		let count = 0;
 		for (const thought of this.thoughts.values())
 			if (thought.collection_id === collectionId) count++;
+		return count;
+	}
+
+	/** How many of your thoughts are in your collection `id` (null: Your thoughts). */
+	countMine(id: string | null): number {
+		let count = 0;
+		for (const thought of this.mine) if (thought.collection === id) count++;
 		return count;
 	}
 
@@ -302,9 +435,18 @@ class Library {
 		this.#deviceTheme = stored(THEME_KEY);
 		const mode = stored(MODE_KEY);
 		this.mode = mode === 'light' || mode === 'dark' ? mode : null;
-		this.homeMine = stored(HOME_KEY) === 'mine';
+		this.homeChoice = stored(HOME_KEY);
+		this.hideShared = stored(HIDE_SHARED_KEY) === 'on';
+		this.#hidden = (stored(HIDDEN_KEY) ?? '')
+			.split(',')
+			.filter(Boolean)
+			.map(Number)
+			.filter(Number.isInteger);
 		this.#deviceAccent = stored(ACCENT_KEY);
 		this.#deviceTone = stored(TONE_KEY);
+		this.plainLooks = stored(PLAIN_LOOKS_KEY) === 'on';
+		this.focus = stored(FOCUS_KEY) === 'on';
+		this.doubleClickRandom = stored(DOUBLE_CLICK_KEY) === 'on';
 		if (typeof BroadcastChannel !== 'undefined') {
 			this.#channel = new BroadcastChannel('qoddy');
 			this.#channel.onmessage = (event) => {
@@ -381,7 +523,12 @@ class Library {
 			const data = await this.#readAll();
 			const saved = data.meta.find(([key]) => key === 'state')?.[1] as Partial<State> | undefined;
 			// State saved by an older version may lack newer keys until the next sync.
-			this.#state = { ...INITIAL, ...saved, settings: { ...DEFAULT_SETTINGS, ...saved?.settings } };
+			this.#state = {
+				...INITIAL,
+				...saved,
+				unsend: { ...saved?.unsend },
+				settings: { ...DEFAULT_SETTINGS, ...saved?.settings }
+			};
 			this.collections = data.collections;
 			this.thoughts = new Map(data.thoughts.map((thought) => [thought.id, thought]));
 			this.#records = new Map(data.records.map((record) => [record.id, record]));
@@ -495,7 +642,7 @@ class Library {
 		const items: MineItem[] = [];
 		const changes: idb.Change[] = [];
 		for (const record of this.#records.values()) {
-			if (!record.dirty) continue;
+			if (!record.dirty || record.local) continue;
 			let item: MineItem = record;
 			if (!record.deleted && record.key !== target) {
 				// Written before the lock changed (or before signing in): re-seal it.
@@ -506,8 +653,12 @@ class Library {
 				this.#records.set(record.id, { ...item, dirty: true });
 				changes.push({ store: 'mine', put: { ...item, dirty: true } });
 			}
-			const { dirty: _, ...plain } = item as MineRecord;
+			const { dirty: _, local: __, ...plain } = item as MineRecord;
 			items.push(plain);
+		}
+		// Thoughts taken out of the account: their tombstones (the thought stays here).
+		for (const [id, updatedAt] of Object.entries(this.#state.unsend)) {
+			items.push({ id, data: '', key: '', updatedAt, deleted: true });
 		}
 		await idb.write(changes);
 		return items;
@@ -577,7 +728,7 @@ class Library {
 			// A restored server may lack thoughts this device has: offer them all
 			// again. Where the server's copy is as new or newer, it wins below.
 			for (const record of this.#records.values()) {
-				if (record.dirty) continue;
+				if (record.dirty || record.local) continue;
 				const dirty = { ...record, dirty: true };
 				this.#records.set(record.id, dirty);
 				changes.push({ store: 'mine', put: dirty });
@@ -636,11 +787,15 @@ class Library {
 
 		if (me && response.mine && mineComplete) {
 			const rejected = new Map(response.mine.rejected.map((r) => [r.id, r.reason]));
+			const unsend = { ...state.unsend };
 			for (const item of pushed) {
+				// A removal the server took, or refused for a newer copy: either way, done.
+				if (unsend[item.id] === item.updatedAt && !rejected.has(item.id)) delete unsend[item.id];
 				const local = this.#records.get(item.id);
 				if (!local || rejected.has(item.id) || local.updatedAt !== item.updatedAt) continue;
 				this.#settle(item, changes);
 			}
+			state.unsend = unsend;
 			for (const item of response.mine.items) {
 				const local = this.#records.get(item.id);
 				// Ours is newer: it goes up on the next push.
@@ -673,6 +828,8 @@ class Library {
 
 	/** Records the server's copy as this device's, clean. Tombstones are dropped. */
 	#settle(item: MineItem, changes: idb.Change[]): void {
+		// This device keeps its own copy (or none): the account's does not apply here.
+		if (this.#records.get(item.id)?.local) return;
 		if (item.deleted) {
 			this.#records.delete(item.id);
 			changes.push({ store: 'mine', key: item.id });
@@ -690,16 +847,23 @@ class Library {
 		changes.push({ store: 'mine', put: record });
 	}
 
+	/** Forgets the account's thoughts here. Those kept on this device only stay: they are nowhere else. */
 	#forgetMine(changes: idb.Change[], state: State): void {
-		this.#records.clear();
+		const kept = [...this.#records.values()].filter((record) => record.local && !record.deleted);
+		this.#records = new Map(kept.map((record) => [record.id, record]));
 		this.#keys.clear();
 		this.#keyVersion++;
-		changes.push({ store: 'mine', clear: true }, { store: 'keys', clear: true });
+		changes.push(
+			{ store: 'mine', clear: true },
+			...kept.map((put) => ({ store: 'mine' as const, put })),
+			{ store: 'keys', clear: true }
+		);
 		state.mineOwner = null;
 		state.ownerEmail = null;
 		state.mineSince = 0;
 		state.lock = null;
 		state.lockRev = 0;
+		state.unsend = {};
 	}
 
 	/** A record's JSON, decrypting it if this device holds its key. */
@@ -711,68 +875,104 @@ class Library {
 
 	async #rebuild(): Promise<void> {
 		const mine: MyThought[] = [];
+		const collections: MyCollection[] = [];
+		const account = this.#state.mineOwner !== null;
 		let sealed = 0;
-		let pending = 0;
+		let pending = Object.keys(this.#state.unsend).length;
+		let hiddenHere = 0;
 		for (const record of this.#records.values()) {
-			if (record.dirty) pending++;
-			if (record.deleted) continue;
+			if (record.dirty && !record.local) pending++;
+			if (record.deleted) {
+				if (record.local) hiddenHere++;
+				continue;
+			}
 			const json = await this.#open(record);
 			if (json === null) {
 				sealed++;
 				continue;
 			}
 			try {
-				const payload = JSON.parse(json) as MinePayload;
-				const checked = checkThought(payload);
+				const payload = JSON.parse(json) as MinePayload | CollectionPayload;
+				const created = Number(payload.created) || record.updatedAt;
+				if ('kind' in payload && payload.kind === 'collection') {
+					const name = typeof payload.name === 'string' ? payload.name.trim() : '';
+					if (name) {
+						collections.push({ id: record.id, slug: MINE_PREFIX + record.id, name, created });
+					}
+					continue;
+				}
+				const thought = payload as MinePayload;
+				const checked = checkThought(thought);
 				if (!checked.ok) continue;
 				mine.push({
 					...checked.value,
 					id: record.id,
-					created: Number(payload.created) || record.updatedAt,
+					place: record.local || !account ? 'device' : record.dirty ? 'pending' : 'account',
+					created,
 					updatedAt: record.updatedAt,
-					from: typeof payload.from === 'string' ? payload.from : null
+					from: typeof thought.from === 'string' ? thought.from : null,
+					collection: typeof thought.collection === 'string' ? thought.collection : null
 				});
 			} catch {
 				sealed++;
 			}
 		}
+		// A thought whose collection is gone (deleted, or not synced yet) shows in Your thoughts.
+		const ids = new Set(collections.map((collection) => collection.id));
+		for (const thought of mine)
+			if (thought.collection && !ids.has(thought.collection)) thought.collection = null;
+		this.myCollections = collections.sort(
+			(a, b) => a.created - b.created || (a.id < b.id ? -1 : 1)
+		);
 		this.mine = mine.sort(byCreated);
 		this.sealed = sealed;
-		this.pending = this.#state.mineOwner !== null ? pending : 0;
+		this.pending = account ? pending : 0;
+		this.hiddenHere = hiddenHere;
 	}
 
 	// --- Your thoughts -----------------------------------------------------------
 
-	/** Saves a new or edited thought of yours; returns its id. */
+	/**
+	 * Saves a new or edited thought of yours; returns its id. `collection` is one
+	 * of your collections (null: Your thoughts); an edit keeps its own unless given.
+	 */
 	async saveMine(
 		input: Record<string, unknown>,
-		options: { id?: string; from?: string | null } = {}
+		options: { id?: string; from?: string | null; collection?: string | null } = {}
 	): Promise<string> {
 		const checked = checkThought(input);
 		if (!checked.ok) {
 			const limit = LIMITS[checked.field as keyof typeof LIMITS] ?? 0;
 			throw new LibraryError(t.thoughtErrors(checked.code, limit), checked.field);
 		}
-		const key = this.#writeKey();
 		const id = options.id ?? newId();
 		const previous = this.mine.find((thought) => thought.id === id);
+		const collection = options.collection !== undefined ? options.collection : previous?.collection;
 		const payload: MinePayload = {
 			...checked.value,
 			created: previous?.created ?? Date.now(),
-			from: options.from ?? previous?.from ?? null
+			from: options.from ?? previous?.from ?? null,
+			...(collection ? { collection } : {})
 		};
+		await this.#put(id, payload);
+		this.#persist();
+		return id;
+	}
+
+	/** Writes one personal record (sealed when the account's thoughts are locked); a local one stays plain and unsent. */
+	async #put(id: string, payload: MinePayload | CollectionPayload): Promise<void> {
+		const local = this.#records.get(id)?.local === true;
+		const key = local ? '' : this.#writeKey();
 		const json = JSON.stringify(payload);
-		const record: MineRecord = {
+		await this.#write({
 			id,
 			data: key ? await encryptItem(this.#keys.get(key)!, id, json) : json,
 			key,
 			updatedAt: this.#stamp(id),
 			deleted: false,
-			dirty: true
-		};
-		await this.#write(record);
-		this.#persist();
-		return id;
+			dirty: !local,
+			...(local ? { local } : {})
+		});
 	}
 
 	/** Asks the browser not to evict this device's data under storage pressure. */
@@ -785,8 +985,17 @@ class Library {
 			.catch(() => undefined);
 	}
 
+	/** Deletes a thought of yours (or a collection) here and, through sync, from the account. */
 	async deleteMine(id: string): Promise<void> {
-		if (!this.#records.has(id)) return;
+		const record = this.#records.get(id);
+		if (!record) return;
+		if (record.local) {
+			// Nowhere else to tell: it is simply gone.
+			this.#records.delete(id);
+			await idb.write([{ store: 'mine', key: id }]);
+			await this.#rebuild();
+			return;
+		}
 		await this.#write({
 			id,
 			data: '',
@@ -795,6 +1004,157 @@ class Library {
 			deleted: true,
 			dirty: true
 		});
+	}
+
+	// --- Your collections ---------------------------------------------------------
+
+	/** Makes a new collection of yours; returns its slug. */
+	async createCollection(name: string): Promise<string> {
+		const id = newId();
+		await this.#put(id, {
+			kind: 'collection',
+			name: this.#collectionName(name),
+			created: Date.now()
+		});
+		return MINE_PREFIX + id;
+	}
+
+	async renameCollection(id: string, name: string): Promise<void> {
+		const collection = this.myCollections.find((c) => c.id === id);
+		if (!collection) return;
+		await this.#put(id, {
+			kind: 'collection',
+			name: this.#collectionName(name),
+			created: collection.created
+		});
+	}
+
+	/** Deletes one of your collections. Its thoughts stay, in Your thoughts. */
+	async deleteCollection(id: string): Promise<void> {
+		if (!this.myCollections.some((c) => c.id === id)) return;
+		await this.deleteMine(id);
+		if (this.homeChoice === MINE_PREFIX + id) this.setHome(null);
+	}
+
+	#collectionName(name: string): string {
+		const value = name.trim();
+		if (!value) throw new LibraryError(t.collections.nameRequired, 'name');
+		if (value.length > COLLECTION_NAME_LIMIT) {
+			throw new LibraryError(t.thoughtErrors('too_long', COLLECTION_NAME_LIMIT), 'name');
+		}
+		return value;
+	}
+
+	// --- Where your thoughts are kept ---------------------------------------------
+
+	/**
+	 * Takes thoughts out of the account and keeps them on this device only. They
+	 * are stored plainly here; their removal reaches the server with the next sync.
+	 */
+	async keepOnlyHere(ids: string[]): Promise<void> {
+		if (this.#state.mineOwner === null || !this.signedIn) {
+			throw new LibraryError(t.data.signInFirst);
+		}
+		const changes: idb.Change[] = [];
+		const unsend = { ...this.#state.unsend };
+		for (const id of ids) {
+			const record = this.#records.get(id);
+			if (!record || record.local || record.deleted) continue;
+			const json = await this.#open(record);
+			if (json === null) throw new LibraryError(t.errors.unlockFirst);
+			const updatedAt = this.#stamp(id);
+			const local: MineRecord = {
+				id,
+				data: json,
+				key: '',
+				updatedAt,
+				deleted: false,
+				dirty: false,
+				local: true
+			};
+			this.#records.set(id, local);
+			changes.push({ store: 'mine', put: local });
+			unsend[id] = updatedAt;
+		}
+		await this.#saveState({ ...this.#state, unsend }, changes);
+		this.#soon();
+	}
+
+	/** Puts thoughts kept on this device only back into the account. */
+	async moveToAccount(ids: string[]): Promise<void> {
+		if (this.#state.mineOwner === null || !this.signedIn) {
+			throw new LibraryError(t.data.signInFirst);
+		}
+		const changes: idb.Change[] = [];
+		const unsend = { ...this.#state.unsend };
+		for (const id of ids) {
+			const record = this.#records.get(id);
+			if (!record?.local || record.deleted) continue;
+			// Newer than the removal it may have sent: the account takes it back.
+			const moved: MineRecord = {
+				id,
+				data: record.data,
+				key: record.key,
+				updatedAt: this.#stamp(id),
+				deleted: false,
+				dirty: true
+			};
+			delete unsend[id];
+			this.#records.set(id, moved);
+			changes.push({ store: 'mine', put: moved });
+		}
+		await this.#saveState({ ...this.#state, unsend }, changes);
+		this.#soon();
+	}
+
+	/**
+	 * Removes thoughts from this device only: the account keeps them, and this
+	 * device ignores them until `restoreHidden`. Refuses while a change to one of
+	 * them has not reached the account: it would be lost.
+	 */
+	async removeHere(ids: string[]): Promise<void> {
+		if (this.#state.mineOwner === null) throw new LibraryError(t.data.signInFirst);
+		if (this.online) await this.sync();
+		const records = ids
+			.map((id) => this.#records.get(id))
+			.filter((r) => r && !r.local && !r.deleted);
+		if (records.some((record) => record!.dirty)) throw new LibraryError(t.data.notSyncedYet);
+		const changes: idb.Change[] = [];
+		for (const record of records) {
+			const hidden: MineRecord = {
+				id: record!.id,
+				data: '',
+				key: '',
+				updatedAt: record!.updatedAt,
+				deleted: true,
+				dirty: false,
+				local: true
+			};
+			this.#records.set(hidden.id, hidden);
+			changes.push({ store: 'mine', put: hidden });
+		}
+		await idb.write(changes);
+		await this.#rebuild();
+	}
+
+	/** Brings back the account's thoughts removed from this device: they download again. */
+	async restoreHidden(): Promise<void> {
+		const changes: idb.Change[] = [];
+		for (const record of [...this.#records.values()]) {
+			if (!record.local || !record.deleted) continue;
+			this.#records.delete(record.id);
+			changes.push({ store: 'mine', key: record.id });
+		}
+		// Ask the account for everything again; newer copies here still win.
+		await this.#saveState({ ...this.#state, mineSince: 0 }, changes);
+		void this.sync();
+	}
+
+	async #saveState(state: State, changes: idb.Change[] = []): Promise<void> {
+		this.#state = state;
+		changes.push({ store: 'meta', key: 'state', put: $state.snapshot(state) });
+		await idb.write(changes);
+		await this.#rebuild();
 	}
 
 	/** Keeps a copy of a public thought in your collection. */
@@ -901,7 +1261,7 @@ class Library {
 		return exportArchive(
 			this.mine.map((thought) => ({
 				thought,
-				synced: account && this.#records.get(thought.id)?.dirty === false
+				synced: account && thought.place === 'account'
 			}))
 		);
 	}
@@ -955,8 +1315,17 @@ class Library {
 		const next = password ? await createLock(password) : null;
 		const items: MineItem[] = [];
 		for (const record of this.#records.values()) {
+			// Kept on this device only: never sent, and plain.
+			if (record.local) continue;
 			if (record.deleted) {
-				if (record.dirty) items.push({ ...record, data: '', key: '' });
+				if (record.dirty)
+					items.push({
+						id: record.id,
+						data: '',
+						key: '',
+						updatedAt: record.updatedAt,
+						deleted: true
+					});
 				continue;
 			}
 			const json = (await this.#open(record))!;
@@ -1119,10 +1488,41 @@ class Library {
 		store(MODE_KEY, mode);
 	}
 
-	/** Your own thoughts on the home page (on this device), or the site's collection. */
-	setHomeMine(mine: boolean): void {
-		this.homeMine = mine;
-		store(HOME_KEY, mine ? 'mine' : null);
+	/** The collection on the home page on this device (a source slug), or null for the site's. */
+	setHome(slug: string | null): void {
+		this.homeChoice = slug;
+		store(HOME_KEY, slug);
+	}
+
+	/** Hides every public collection on this device, or shows those not hidden one by one. */
+	setHideShared(hide: boolean): void {
+		this.hideShared = hide;
+		store(HIDE_SHARED_KEY, hide ? 'on' : null);
+	}
+
+	/** Hides one public collection on this device, or shows it again. */
+	setHidden(collectionId: number, hidden: boolean): void {
+		const rest = this.#hidden.filter((id) => id !== collectionId);
+		this.#hidden = hidden ? [...rest, collectionId] : rest;
+		store(HIDDEN_KEY, this.#hidden.length ? this.#hidden.join(',') : null);
+	}
+
+	/** Every thought in the reader's own theme, ignoring a thought's look (this device). */
+	setPlainLooks(on: boolean): void {
+		this.plainLooks = on;
+		store(PLAIN_LOOKS_KEY, on ? 'on' : null);
+	}
+
+	/** Few, muted controls on the reading pages (this device). */
+	setFocus(on: boolean): void {
+		this.focus = on;
+		store(FOCUS_KEY, on ? 'on' : null);
+	}
+
+	/** A double click on a thought shows another at random (this device). */
+	setDoubleClickRandom(on: boolean): void {
+		this.doubleClickRandom = on;
+		store(DOUBLE_CLICK_KEY, on ? 'on' : null);
 	}
 
 	/** Shows the app in another language; signed in, the account remembers it. */

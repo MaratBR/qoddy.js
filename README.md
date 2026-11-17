@@ -25,7 +25,7 @@ The service worker only runs in a production build. To try offline behavior, run
 
 ## Reading
 
-The home page is today's thought from the **home** collection (see `home` under Collections), with its author and source. A thought from a collection carries the collection's name beside the date; your own thoughts carry none. Under the thought, icons keep it, link to it, list the whole collection and, when it has notes, unfold them; in your own thoughts they edit it and show another of yours at random (`?t=<id>`). Below, an arrow and a fixed run of day ticks lead back through the last week (as far as the first tick), and the arrow keys and swipes do the same. Future days stay hidden. The day is the reader's local date. Rotation is `thoughts[dayNumber % count]` in collection order, so every reader sees the same thought on the same day.
+The home page is today's thought from the **home** collection (see `home` under Collections, or the reader's own choice), with its author and source. A thought from a collection carries the collection's name beside the date; your own thoughts carry none. Under the thought, icons show another at random (`?t=<id>`), keep it (public thoughts), share it as an image and, when it has notes, unfold them; a **⋯** menu holds edit (your own thoughts), its permalink and the whole collection. Below, arrows lead back through the last week, and the arrow keys and swipes do the same. Future days stay hidden. The day is the reader's local date. Rotation is `thoughts[dayNumber % count]` in collection order, so every reader sees the same thought on the same day.
 
 On a phone the thought is centered, with even room on both sides.
 
@@ -33,7 +33,13 @@ On a phone the thought is centered, with even room on both sides.
 
 The page fits the window: a thought too long for it is set smaller (down to 55% of its size) rather than scroll.
 
-**Menu** lists the collections (each at `/c/<slug>`, plus `/c/<slug>/all`; empty ones are left out), **Your thoughts**, the three themes, and links to the account and to Appearance. It invites readers to create an account only while the site allows sign-up. **Write** opens the editor for a thought of your own. The editor is set like the thought's page: the text in its reading size, the attribution under it, and notes and style folded away. Ctrl/⌘ + Enter saves. Editing an existing thought, Save and Cancel return to the page you came from.
+**Menu** lists the collections (each at `/c/<slug>`, plus `/c/<slug>/all`; empty and hidden ones are left out), **Your thoughts** and your other collections, the themes, the language, and links to Account (with who is signed in), Appearance and Collections.
+
+**On this device** (Account → Appearance), each off until turned on:
+
+- **Keep my theme on every thought:** a thought's own theme, color and font give way to the reader's.
+- **Focus mode:** the bar keeps the site's name and Menu, and under a thought only the ⋯ menu and the notes stay, all muted until pointed at.
+- **Double click for another thought:** a double click (or double tap) on the thought shows another from the same collection at random. **Write** opens the editor for a thought of your own. The editor is set like the thought's page: the text in its reading size, the attribution under it, and notes and style folded away. Ctrl/⌘ + Enter saves. Editing an existing thought, Save and Cancel return to the page you came from.
 
 ## Thoughts
 
@@ -47,8 +53,10 @@ A thought is its text plus optional fields:
 ## Collections
 
 - **Public collections** have no owner. Admins create and edit them in the dashboard or with the CLI, and everyone reads them. An admin can **hide** one (not the home collection): readers' devices get it and its thoughts as deletions, and showing it again brings them back. Empty collections never appear in the reading app's menu. The `home` setting picks the one that feeds the home page (`default` at first). It is kept by id, so its address can change, but it cannot be deleted while it is home.
-- **Your thoughts** is one personal collection per reader. Anyone can write thoughts without an account; they stay on the device. **Keep** under a public thought copies it into your thoughts. Signing in uploads the device's thoughts to the account and merges them with what is already there, and every signed-in device then syncs.
-- **Reader's choice:** setting `home` to `mine` turns the shared thought of the day off. Each reader's home page then shows one of their own thoughts, with nothing to choose. With a home collection set, **Account → Appearance → Home page** lets each reader show their own thoughts there instead.
+- **Your thoughts** is every reader's own collection. Anyone can write thoughts without an account; they stay on the device. **Keep** under a public thought copies it into your thoughts. Signing in uploads the device's thoughts to the account and merges them with what is already there, and every signed-in device then syncs.
+- **Your other collections:** on **Account → Collections** a reader can make more (`/c/mine.<id>`), rename and delete them. Your thoughts is the default and cannot be deleted; deleting another moves its thoughts back there. The editor picks the collection. Collections are personal items like thoughts (`{ kind: 'collection', name }`), so they sync, lock and count toward quotas the same way; older clients skip them.
+- **Home page:** setting `home` to `mine` turns the shared thought of the day off. Each reader's home page then shows one of their own thoughts. On **Account → Collections** each reader can put any collection, theirs or public, on their home page (on that device).
+- **Hiding public collections:** on the same page, a reader can hide all of the site's collections or single ones on that device. Hidden ones leave the menu and the home page; a link still opens them.
 
 ### Locking your thoughts
 
@@ -64,6 +72,7 @@ On **Account → Privacy → Thought lock**, a signed-in reader can set a passwo
 
 On **Account → Your data**:
 
+- **Where your thoughts are:** lists them in two groups, **In your account** (with those still waiting to sync) and **Only on this device**. Selected thoughts in the account can be kept on this device only (the account and other devices drop them; this device keeps a plain copy that never syncs) or deleted, everywhere or from this device only (the account keeps them, and **Bring them back** downloads them again). Thoughts only on this device can be moved into the account or deleted. Thoughts kept on this device only stay through signing out and signing in; the thought lock does not cover them, as it does not cover thoughts written signed out.
 - **Export:** downloads your thoughts as a zip of Markdown files, built in the browser (no server involved, works signed out). Each file has YAML front matter (author, source, lang, theme, color, font, created, updated, kept_from), the text, then the notes. Thoughts already in your account are under `synced/`, those only on this device under `this-device/`. Locked thoughts must be unlocked first.
 - **Delete account:** asks twice, then deletes the account, its sessions and every synced thought on the server at once (SQLite `secure_delete` overwrites the rows), and the account's thoughts on this device. The last admin cannot delete their account.
 - **Stats for nerds** (link at the bottom of **Account**): the app's and the server's build time and commit, when the server started, sync cursors, counts, storage use and whether the browser protects it from eviction.

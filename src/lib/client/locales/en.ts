@@ -34,9 +34,8 @@ export const en = {
 		ownTheme: 'This thought is set in its own theme.',
 		ownColor: 'This thought is set in its own color.',
 		language: 'Language',
-		account: 'Account',
-		signInOrCreate: 'Sign in or create an account',
-		signIn: 'Sign in',
+		settings: 'Settings',
+		signedOut: 'Not signed in',
 		accent: 'Color',
 		defaultColor: 'Default',
 		paper: 'Paper',
@@ -77,14 +76,14 @@ export const en = {
 	},
 
 	day: {
-		days: 'Days',
 		previous: 'Previous day',
 		next: 'Next day',
 		mineIntro:
 			'Write down a thought you want to come back to. Each day brings one of yours back, the way this page shows one from the collection.',
 		keepHint: 'Or keep thoughts you meet: the bookmark under any of them adds it here.',
 		permalink: 'Permalink',
-		random: 'Another thought'
+		random: 'Another thought',
+		more: 'More'
 	},
 
 	thought: {
@@ -185,6 +184,68 @@ export const en = {
 		export: 'Export',
 		lockNeedsAccount:
 			'Signed in, you can lock your thoughts with a password, so they are encrypted before they leave your devices.'
+	},
+
+	appearance: {
+		device: 'On this device',
+		plainLooks: 'Keep my theme on every thought',
+		focus: 'Focus mode',
+		doubleClick: 'Double click for another thought',
+		deviceHint:
+			'A thought’s own theme, color and font give way to yours. Focus mode leaves only a few quiet controls. A double click (or double tap) on a thought shows another at random.'
+	},
+
+	collections: {
+		title: 'Collections',
+		yours: 'Your collections',
+		yoursHint:
+			'New thoughts go to Your thoughts unless you pick another. Deleting a collection moves its thoughts to Your thoughts.',
+		defaultOne: (n: number) => `${n} ${thoughts(n)} · where new ones go`,
+		count: (n: number) => `${n} ${thoughts(n)}`,
+		name: 'Collection name',
+		newName: 'A new collection',
+		create: 'Create',
+		save: 'Save',
+		rename: 'Rename',
+		delete: 'Delete',
+		deleteConfirm: (name: string) =>
+			`Delete the collection “${name}”? Its thoughts stay, in Your thoughts.`,
+		nameRequired: 'Give the collection a name.',
+		siteChoice: (name: string) => `${name} (the site’s choice)`,
+		shared: (site: string) => `Collections from ${site}`,
+		showShared: 'Show them',
+		sharedHint:
+			'Hidden collections leave the menu and the home page on this device. A link to one still opens it.'
+	},
+
+	data: {
+		where: 'Where your thoughts are',
+		whereHint:
+			'Thoughts in your account are on all your devices. Those only on this device never leave it.',
+		whereHintSignedOut:
+			'All your thoughts are on this device only. Sign in to keep them in an account.',
+		inAccount: 'In your account',
+		onDevice: 'Only on this device',
+		pending: 'waiting to sync',
+		keepHere: 'Keep only on this device',
+		keepHereConfirm: (n: number) =>
+			`Remove ${n === 1 ? 'this thought' : `these ${n} thoughts`} from your account? ${n === 1 ? 'It stays' : 'They stay'} on this device only, and ${n === 1 ? 'leaves' : 'leave'} your other devices when they sync.`,
+		moveToAccount: 'Move to your account',
+		delete: 'Delete…',
+		deleteTitle: (n: number) => (n === 1 ? 'Delete this thought?' : `Delete ${n} thoughts?`),
+		deleteQuestion: 'Delete from your account too, or only from this device?',
+		deleteEverywhere: 'Delete everywhere',
+		deleteHereOnly: 'Only from this device',
+		deleteHereConfirm: (n: number) =>
+			`Delete ${n === 1 ? 'this thought' : `these ${n} thoughts`}? ${n === 1 ? 'It is' : 'They are'} nowhere else, so this cannot be undone.`,
+		hiddenHere: (n: number) =>
+			`${n === 1 ? '1 thought' : `${n} thoughts`} in your account ${n === 1 ? 'is' : 'are'} removed from this device.`,
+		restore: 'Bring them back',
+		sealed: (n: number) =>
+			`${n === 1 ? '1 thought is' : `${n} thoughts are`} locked: unlock them on this device to see ${n === 1 ? 'it' : 'them'} here.`,
+		signInFirst: 'Sign in to your account first.',
+		notSyncedYet:
+			'Some of these have changes that have not reached your account yet. Try again once they are synced.'
 	},
 
 	appLock: {
@@ -316,6 +377,7 @@ export const en = {
 		fontHint: 'Any Google Fonts family, e.g. Lora',
 		language: 'Language',
 		languageHint: 'A tag like en, fr or zh-Hans',
+		collection: 'Collection',
 		saving: 'Saving…',
 		save: 'Save',
 		cancel: 'Cancel',

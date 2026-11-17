@@ -1,6 +1,7 @@
 <script lang="ts">
-	// The thought of the day from one source (a public collection, or `mine`),
-	// with a way back through the last week: ticks, links, ← → keys, and swipes.
+	// The thought of the day from one source (a public collection, Your thoughts,
+	// or another of your collections), with a way back through the last week:
+	// arrows, ← → keys, and swipes.
 	// Later days stay hidden: tomorrow's thought waits for tomorrow. The thought's
 	// notes are the screen below.
 	import { goto } from '$app/navigation';
@@ -8,54 +9,93 @@
 	import { library } from '#lib/client/library.svelte.ts';
 	import { i18n, t } from '#lib/client/i18n.svelte.ts';
 	import { addDays, formatDate, isDate, ofTheDay, today } from '#lib/days.ts';
+	import type { MyThought } from '#lib/client/library.svelte.ts';
+	import type { PublicThought } from '#lib/wire.ts';
 	import Thought from './Thought.svelte';
 	import Notes from './Notes.svelte';
 	import Unlock from './Unlock.svelte';
 	import KeepButton from './KeepButton.svelte';
 	import ShareImageButton from './ShareImageButton.svelte';
+	import MoreMenu from './MoreMenu.svelte';
 	import Icon from './Icon.svelte';
 
 	let { slug }: { slug: string } = $props();
 	let notesView: Notes | undefined = $state();
 
 	const now = today();
-	/** The ticks: a fixed run ending two (unreachable) days after today. */
-	const ticks = Array.from({ length: 9 }, (_, i) => addDays(now, i - 6));
-	/** The furthest back a reader can go: the first tick. */
-	const earliest = ticks[0];
+	/** The furthest back a reader can go: a week. */
+	const earliest = addDays(now, -6);
 	const date = $derived.by(() => {
 		const asked = page.url.searchParams.get('d') ?? '';
 		return isDate(asked) && asked >= earliest && asked < now ? asked : now;
 	});
-	const mine = $derived(slug === 'mine');
+	const source = $derived(library.source(slug));
+	const mine = $derived(source?.mine ?? false);
 	const locked = $derived(mine && library.locked && library.sealed > 0);
-	const collection = $derived(mine ? undefined : library.collection(slug));
-	const inCollection = $derived(collection ? library.thoughtsIn(collection.id) : []);
-	const daily = $derived(
-		mine ? ofTheDay(library.mine, date) : collection ? ofTheDay(inCollection, date) : undefined
-	);
+	const thoughts = $derived<readonly (MyThought | PublicThought)[]>(source?.thoughts ?? []);
+	const daily = $derived(ofTheDay(thoughts, date));
 	/** A thought picked at random (`?t=<id>`), shown instead of the day's. */
 	const asked = $derived(page.url.searchParams.get('t') ?? '');
-	const own = $derived(
-		mine ? (library.mineById(asked) ?? ofTheDay(library.mine, date)) : undefined
-	);
-	const shared = $derived(
-		collection
-			? (inCollection.find((other) => other.id === asked) ?? ofTheDay(inCollection, date))
-			: undefined
-	);
-	const thought = $derived(own ?? shared);
-	/** Showing a random thought, not the day's: the ticks give way to a way back. */
+	const thought = $derived(thoughts.find((other) => other.id === asked) ?? daily);
+	/** A public thought, which can be kept. */
+	const shared = $derived(thought && !mine ? (thought as PublicThought) : undefined);
+	/** Showing a random thought, not the day's: the arrows give way to a way back. */
 	const picked = $derived(!!thought && thought.id !== daily?.id);
-	const notes = $derived(locked || (!mine && !collection) ? null : thought?.notes);
-	const count = $derived(mine ? library.mine.length : inCollection.length);
+	const notes = $derived(locked || !source ? null : thought?.notes);
+	const count = $derived(thoughts.length);
 	const base = $derived(page.url.pathname);
+	const focus = $derived(library.focus);
 
 	/** Shows another thought from the same source, never the one already on the page. */
 	function shuffle() {
-		const others = (mine ? library.mine : inCollection).filter((other) => other.id !== thought?.id);
+		const others = thoughts.filter((other) => other.id !== thought?.id);
 		const next = others[Math.floor(Math.random() * others.length)];
 		if (next) void goto(`${base}?t=${next.id}`, { reset: false, replace: true });
+	}
+
+	const more = $derived(
+		thought
+			? [
+					...(mine
+						? [{ href: `/write?id=${thought.id}`, label: t.common.edit, icon: 'edit' as const }]
+						: []),
+					{ href: `/t/${thought.id}`, label: t.day.permalink, icon: 'link' as const },
+					{ href: `/c/${slug}/all`, label: t.collection.count(count), icon: 'list' as const }
+				]
+			: []
+	);
+
+	// A double click (or tap) on the thought shows another, where the reader
+	// turned it on. Not on controls, and not twice for one gesture.
+	const interactive = (target: EventTarget | null) =>
+		target instanceof Element && !!target.closest('a, button, input, textarea, .actions, footer');
+	let shuffledAt = 0;
+	function again(event: Event) {
+		if (!library.doubleClickRandom || count < 2 || interactive(event.target)) return;
+		if (Date.now() - shuffledAt < 500) return;
+		shuffledAt = Date.now();
+		getSelection()?.removeAllRanges();
+		shuffle();
+	}
+	/** Keeps a double click from selecting a word first. */
+	function onmousedown(event: MouseEvent) {
+		if (library.doubleClickRandom && event.detail > 1 && !interactive(event.target)) {
+			event.preventDefault();
+		}
+	}
+	let tap: { at: number; x: number; y: number } | null = null;
+	function onpointerup(event: PointerEvent) {
+		if (event.pointerType !== 'touch') return;
+		const last = tap;
+		tap = { at: event.timeStamp, x: event.clientX, y: event.clientY };
+		if (
+			last &&
+			event.timeStamp - last.at < 350 &&
+			Math.hypot(event.clientX - last.x, event.clientY - last.y) < 30
+		) {
+			tap = null;
+			again(event);
+		}
 	}
 
 	const href = (day: string) => (day === now ? base : `${base}?d=${day}`);
@@ -103,14 +143,22 @@
 
 <svelte:window {onkeydown} />
 
-<main {ontouchstart} {ontouchend}>
-	<div class="screen">
+<main {ontouchstart} {ontouchend} class:focus>
+	<!-- The double click is an extra: the shuffle button does the same. -->
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div
+		class="screen"
+		class:again={library.doubleClickRandom}
+		ondblclick={again}
+		{onmousedown}
+		{onpointerup}
+	>
 		{#if locked}
 			<div>
 				<p class="dateline-quiet">{dateline}</p>
 				<Unlock />
 			</div>
-		{:else if !mine && !collection}
+		{:else if !source}
 			<div class="empty">
 				<h1>{t.common.nothingHere}</h1>
 				<p>{library.online ? t.common.noCollection : t.common.noCollectionOffline}</p>
@@ -119,46 +167,38 @@
 		{:else if !thought}
 			<div class="empty">
 				{#if mine}
-					<h1>{t.common.yourThoughts}</h1>
+					<h1>{source.name}</h1>
 					<p>{t.day.mineIntro}</p>
-					<p><a class="button" href="/write">{t.common.writeAThought}</a></p>
+					<p><a class="button" href="/write?c={slug}">{t.common.writeAThought}</a></p>
 					<p class="muted">{t.day.keepHint}</p>
 				{:else}
-					<h1>{collection?.name}</h1>
+					<h1>{source.name}</h1>
 					<p>{t.common.noThoughtsYet}</p>
 				{/if}
 			</div>
 		{:else}
-			<!-- Someone else's collection is named; your own thoughts need no label. -->
-			<Thought {thought} dateline={picked ? undefined : dateline} source={collection?.name} />
+			<!-- Someone else's collection is named; your own need no label. -->
+			<Thought
+				{thought}
+				dateline={picked ? undefined : dateline}
+				source={mine ? undefined : source.name}
+			/>
 			<!-- Out of the thought, above the footer: the buttons stay put as thoughts
-			     of any length come and go. Shuffle leads, so it is always in one place. -->
+			     of any length come and go. Shuffle leads, so it is always in one place.
+			     In focus mode only the menu and the notes stay, muted. -->
 			<div class="actions">
-				{#if count > 1}
+				{#if count > 1 && !focus}
 					<button class="icon" onclick={shuffle} aria-label={t.day.random} title={t.day.random}
 						><Icon name="shuffle" /></button
 					>
 				{/if}
-				{#if mine}
-					<a
-						class="icon"
-						href="/write?id={thought.id}"
-						aria-label={t.common.edit}
-						title={t.common.edit}><Icon name="edit" /></a
-					>
-				{:else if shared}
+				{#if shared && !focus}
 					<KeepButton thought={shared} />
 				{/if}
-				<a class="icon" href="/t/{thought.id}" aria-label={t.day.permalink} title={t.day.permalink}
-					><Icon name="link" /></a
-				>
-				<ShareImageButton {thought} />
-				<a
-					class="icon"
-					href="/c/{slug}/all"
-					aria-label={t.collection.count(count)}
-					title={t.collection.count(count)}><Icon name="list" /></a
-				>
+				{#if !focus}
+					<ShareImageButton {thought} />
+				{/if}
+				<MoreMenu label={t.day.more} items={more} />
 				<!-- Its place is kept for thoughts without notes, so the row never shifts. -->
 				{#if notes}
 					<button
@@ -179,43 +219,26 @@
 			{:else}
 				{#if date > earliest}
 					<a
-						class="icon"
+						class="icon day"
 						href={href(addDays(date, -1))}
 						aria-label={t.day.previous}
 						title={t.day.previous}
 						data-sveltekit-reset="false"><Icon name="previous" /></a
 					>
 				{:else}
-					<span class="icon" aria-hidden="true"></span>
+					<span class="icon day" aria-hidden="true"></span>
 				{/if}
-				<ol class="ticks" aria-label={t.day.days}>
-					{#each ticks as day (day)}
-						<li>
-							{#if day <= now}
-								<a
-									href={href(day)}
-									aria-label={label(day)}
-									aria-current={day === date && !picked ? 'date' : undefined}
-									class:today={day === now}
-									data-sveltekit-reset="false"
-								></a>
-							{:else}
-								<span aria-hidden="true"></span>
-							{/if}
-						</li>
-					{/each}
-				</ol>
 				{#if date < now}
 					{@const next = addDays(date, 1) === now ? t.menu.today : t.day.next}
 					<a
-						class="icon"
+						class="icon day"
 						href={href(addDays(date, 1))}
 						aria-label={next}
 						title={next}
 						data-sveltekit-reset="false"><Icon name="next" /></a
 					>
 				{:else}
-					<span class="icon" aria-hidden="true"></span>
+					<span class="icon day" aria-hidden="true"></span>
 				{/if}
 			{/if}
 		</footer>
@@ -259,90 +282,51 @@
 			display: none;
 		}
 	}
-	/* In place of the ticks and arrows, as tall, so nothing above them moves;
-	   the whole row is its room, so a longer language's words stay on one line. */
+	/* In place of the arrows, as tall, so nothing above them moves; the whole
+	   row is its room, so a longer language's words stay on one line. */
 	.back {
-		grid-column: 1 / -1;
-		justify-self: center;
+		flex: 1;
 		align-self: center;
 		color: var(--muted);
 		font-size: 0.9rem;
 		text-align: center;
 	}
 	footer {
-		display: grid;
-		grid-template-columns: 1fr auto 1fr;
+		display: flex;
 		align-items: end;
+		justify-content: space-between;
 		gap: 0.5rem;
 		padding: 1.5rem 0 max(1rem, env(safe-area-inset-bottom));
 	}
-	/* Room below the ticks for the chevron that hints at notes (Notes.svelte), kept
-	   on every page, so the ticks and buttons stand still with or without notes. */
+	/* Room below the arrows for the chevron that hints at notes (Notes.svelte), kept
+	   on every page, so the arrows and buttons stand still with or without notes. */
 	@media (any-pointer: coarse) {
 		footer {
 			padding-bottom: max(2.25rem, env(safe-area-inset-bottom) + 1.25rem);
 		}
 	}
-	footer > .icon:last-child {
-		justify-self: end;
+	/* The way through the days: larger than the buttons above. */
+	.day {
+		width: 3.25rem;
+		height: 3.25rem;
 	}
-	.ticks {
-		list-style: none;
-		display: flex;
-		align-items: flex-end;
-		gap: 0;
-		margin: 0;
-		padding: 0;
-		height: 2.75rem;
+	.day :global(svg) {
+		width: 1.6rem;
+		height: 1.6rem;
 	}
-	.ticks a,
-	.ticks span {
-		display: flex;
-		align-items: flex-end;
-		justify-content: center;
-		width: 1.1rem;
-		height: 2.75rem;
+	/* Double click for another: no word selected, no zoom on a double tap. */
+	.again {
+		touch-action: manipulation;
 	}
-	.ticks a::after,
-	.ticks span::after {
-		content: '';
-		width: 2px;
-		height: 0.8rem;
-		border-radius: 1px;
-		background: color-mix(in oklab, var(--muted) 70%, transparent);
-		transition:
-			height 0.35s var(--ease),
-			width 0.35s var(--ease),
-			background-color 0.35s var(--ease);
+	/* Focus mode: what is left of the controls recedes until wanted. */
+	.focus :is(.actions, footer) :global(.icon) {
+		background: none;
+		color: var(--muted);
+		opacity: 0.55;
+		transition: opacity 0.25s var(--ease);
 	}
-	.ticks span::after {
-		opacity: 0.4;
-	}
-	.ticks a.today::after {
-		height: 1.25rem;
-	}
-	@media (hover: hover) {
-		.ticks a:hover::after {
-			height: 1.5rem;
-			background: var(--muted);
-		}
-	}
-	/* Fingers need wider targets than a pointer. */
-	@media (pointer: coarse) {
-		.ticks a,
-		.ticks span {
-			width: 1.5rem;
-		}
-	}
-	.ticks a:focus-visible {
-		outline-offset: -2px;
-		border-radius: 6px;
-	}
-	.ticks a[aria-current='date']::after {
-		width: 4px;
-		height: 1.75rem;
-		border-radius: 2px;
-		background: var(--accent);
+	.focus :is(.actions, footer) :global(.icon:is(:hover, :focus-visible, [aria-expanded='true'])) {
+		opacity: 1;
 	}
 	/* Narrow screens: the thought gets the room. */
 	@media (max-width: 40rem) {

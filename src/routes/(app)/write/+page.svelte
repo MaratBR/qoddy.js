@@ -28,6 +28,11 @@
 	let color = $state(existing?.color ?? '#6b4fa8');
 	let font = $state(existing?.font ?? '');
 	let lang = $state(existing?.lang ?? '');
+	/** Which of your collections it goes in ('' for Your thoughts): its own, else the one it was written from (`?c=`). */
+	const from = library.source(page.url.searchParams.get('c') ?? '');
+	let collection = $state(
+		existing ? (existing.collection ?? '') : from?.mine ? (from.collection?.id ?? '') : ''
+	);
 
 	let notesOpen = $state(Boolean(existing?.notes));
 	let styleOpen = $state(
@@ -70,7 +75,7 @@
 		try {
 			const saved = await library.saveMine(
 				{ text, author, source, notes, theme, color: colored ? color : '', font, lang },
-				{ id: existing?.id }
+				{ id: existing?.id, collection: collection || null }
 			);
 			if (existing && cameFromApp) history.back();
 			else await goto(`/t/${saved}`);
@@ -100,6 +105,10 @@
 		await goto('/c/mine/all');
 	}
 
+	const collectionOptions = $derived([
+		{ value: '', label: t.common.yourThoughts },
+		...library.myCollections.map((c) => ({ value: c.id, label: c.name }))
+	]);
 	const themeOptions = $derived([
 		{ value: '', label: t.write.readersTheme },
 		...THEMES.map((option) => ({ value: option.id, label: t.themes[option.id] ?? option.name }))
@@ -275,6 +284,16 @@
 			</div>
 
 			<footer>
+				{#if library.myCollections.length > 0}
+					<div class="field collection">
+						<span id="collection-label">{t.write.collection}</span>
+						<Select
+							bind:value={collection}
+							options={collectionOptions}
+							labelledby="collection-label"
+						/>
+					</div>
+				{/if}
 				{#if error && !INLINE_ERRORS.includes(error.field ?? '')}
 					<p class="error" role="alert">{error.message}</p>
 				{/if}
@@ -412,6 +431,9 @@
 
 	/* The folded sections: quiet pills; open, they take the accent and the
 	   chevron turns down toward what they opened. */
+	.collection {
+		max-width: 20rem;
+	}
 	.more {
 		display: flex;
 		flex-wrap: wrap;

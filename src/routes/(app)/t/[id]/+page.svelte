@@ -17,6 +17,9 @@
 	const collection = $derived(
 		shared && library.collections.find((c) => c.id === shared.collection_id)
 	);
+	const mineCollection = $derived(
+		mine?.collection ? library.myCollections.find((c) => c.id === mine.collection) : undefined
+	);
 	let notes: Notes | undefined = $state();
 	const canShare = typeof navigator !== 'undefined' && 'share' in navigator;
 
@@ -57,7 +60,10 @@
 			<p class="from">
 				{#if collection}
 					{t.thought.fromCollection}
-					<a href={library.isHome(collection) ? '/' : `/c/${collection.slug}`}>{collection.name}</a>
+					<a href={library.href(collection.slug)}>{collection.name}</a>
+				{:else if mineCollection}
+					{t.thought.fromCollection}
+					<a href="/c/{mineCollection.slug}/all">{mineCollection.name}</a>
 				{:else}
 					{t.thought.fromMine} <a href="/c/mine/all">{t.thought.yourThoughtsLink}</a>
 				{/if}

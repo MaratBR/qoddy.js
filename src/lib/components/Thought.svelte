@@ -7,6 +7,7 @@
 	import { sizeClass, type ThoughtFields } from '#lib/thought.ts';
 	import { useLook } from '#lib/client/look.svelte.ts';
 	import { t } from '#lib/client/i18n.svelte.ts';
+	import { library } from '#lib/client/library.svelte.ts';
 	import Icon from './Icon.svelte';
 
 	let {
@@ -23,7 +24,8 @@
 		onnotes?: () => void;
 	} = $props();
 
-	useLook(() => thought);
+	// Unless this device sets every thought in the reader's own theme.
+	useLook(() => (library.plainLooks ? null : thought));
 
 	// Quotation marks for attributed thoughts; your own unattributed ones stand bare.
 	const quoted = $derived(Boolean(thought.author));

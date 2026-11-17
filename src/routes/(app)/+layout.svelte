@@ -9,6 +9,7 @@
 	import Icon from '#lib/components/Icon.svelte';
 	import AppLock from '#lib/components/AppLock.svelte';
 	import ThemePicker from '#lib/components/ThemePicker.svelte';
+	import LanguagePicker from '#lib/components/LanguagePicker.svelte';
 	import { findTheme, THEMES } from '#lib/themes.ts';
 	import type { LayoutProps } from './$types';
 
@@ -96,15 +97,31 @@
 
 	const current = (href: string) => (page.url.pathname === href ? 'page' : undefined);
 
-	/** The menu's reading list: today, collections with something in them, your own. */
-	const shelf = $derived([
-		...(library.homeId !== null ? [{ href: '/', title: t.menu.today, count: null }] : []),
-		// Empty collections stay out of the way until they have something to read.
-		...library.collections
-			.filter((c) => !library.isHome(c) && library.countIn(c.id) > 0)
-			.map((c) => ({ href: `/c/${c.slug}`, title: c.name, count: library.countIn(c.id) })),
-		{ href: '/c/mine', title: t.common.yourThoughts, count: library.mine.length }
-	]);
+	/**
+	 * The menu's reading list: today (a public home), the public collections this
+	 * device shows with something in them, then all of yours.
+	 */
+	const shelf = $derived.by(() => {
+		const home = library.homeSlug;
+		const publicHome = library.collection(home);
+		return [
+			...(publicHome ? [{ href: '/', title: t.menu.today, count: null }] : []),
+			// Empty collections stay out of the way until they have something to read.
+			...library.shownCollections
+				.filter((c) => c.slug !== home && library.countIn(c.id) > 0)
+				.map((c) => ({ href: `/c/${c.slug}`, title: c.name, count: library.countIn(c.id) })),
+			{ href: '/c/mine', title: t.common.yourThoughts, count: library.countMine(null) },
+			...library.myCollections.map((c) => ({
+				href: `/c/${c.slug}`,
+				title: c.name,
+				count: library.countMine(c.id)
+			}))
+		];
+	});
+	/** Writing from one of your collections puts the thought there. */
+	const writeHref = $derived(
+		page.params.slug?.startsWith('mine') ? `/write?c=${page.params.slug}` : '/write'
+	);
 </script>
 
 <svelte:head>
@@ -114,12 +131,14 @@
 	{/if}
 </svelte:head>
 
-<header class="bar" bind:offsetHeight={barHeight}>
+<header class="bar" class:focus={library.focus} bind:offsetHeight={barHeight}>
 	<a class="name" href="/">{library.settings.site_name}</a>
 	{#if !library.online}<span class="offline">{t.bar.offline}</span>{/if}
 	{#if !library.appLocked}
 		<nav>
-			<a class="link" href="/write" aria-current={current('/write')}>{t.bar.write}</a>
+			{#if !library.focus}
+				<a class="link" href={writeHref} aria-current={current('/write')}>{t.bar.write}</a>
+			{/if}
 			<button class="link" onclick={() => menu?.showModal()} aria-haspopup="dialog"
 				>{t.bar.menu}</button
 			>
@@ -170,23 +189,29 @@
 			</section>
 
 			<section>
-				<h2 class="label">{t.menu.account}</h2>
+				<h2 class="label">{t.menu.language}</h2>
+				<LanguagePicker />
+			</section>
+
+			<section>
+				<h2 class="label">{t.menu.settings}</h2>
 				<ul class="group">
 					<li>
 						<a href="/account" aria-current={current('/account')}>
-							<span class="title"
-								>{library.me
-									? library.me.name
-									: library.settings.allow_sign_up
-										? t.menu.signInOrCreate
-										: t.menu.signIn}</span
-							>
+							<span class="title">{t.account.title}</span>
+							<span class="count">{library.me ? library.me.name : t.menu.signedOut}</span>
 							<Icon name="chevron" />
 						</a>
 					</li>
 					<li>
 						<a href="/account/appearance" aria-current={current('/account/appearance')}>
 							<span class="title">{t.account.appearance}</span>
+							<Icon name="chevron" />
+						</a>
+					</li>
+					<li>
+						<a href="/account/collections" aria-current={current('/account/collections')}>
+							<span class="title">{t.collections.title}</span>
 							<Icon name="chevron" />
 						</a>
 					</li>
@@ -284,6 +309,19 @@
 	nav .link[aria-current='page'] {
 		color: var(--accent);
 		background: color-mix(in oklab, var(--accent) 14%, transparent);
+	}
+	/* Focus mode: the bar keeps the name and the menu, muted until wanted. */
+	.bar.focus .name,
+	.bar.focus nav .link {
+		color: var(--muted);
+		opacity: 0.6;
+		transition: opacity 0.25s var(--ease);
+	}
+	.bar.focus nav .link {
+		background: none;
+	}
+	.bar.focus :is(.name, nav .link):is(:hover, :focus-visible) {
+		opacity: 1;
 	}
 	.update {
 		display: flex;

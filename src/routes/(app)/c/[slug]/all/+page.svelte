@@ -7,16 +7,11 @@
 	import Icon from '#lib/components/Icon.svelte';
 
 	const slug = $derived(page.params.slug ?? '');
-	const mine = $derived(slug === 'mine');
-	const collection = $derived(mine ? undefined : library.collection(slug));
-	const name = $derived(mine ? t.common.yourThoughts : collection?.name);
-	const all = $derived(
-		mine
-			? [...library.mine].reverse()
-			: collection
-				? library.thoughtsIn(collection.id).reverse()
-				: []
-	);
+	const source = $derived(library.source(slug));
+	const mine = $derived(source?.mine ?? false);
+	const collection = $derived(source && !source.mine ? source.collection : undefined);
+	const name = $derived(source?.name);
+	const all = $derived(source ? [...source.thoughts].reverse() : []);
 
 	let search = $state('');
 	const shown = $derived.by(() => {
@@ -43,8 +38,8 @@
 			<h1>{name}</h1>
 			{#if collection?.description}<p class="muted">{collection.description}</p>{/if}
 			<p>
-				<a href="/c/{slug}">{t.collection.todays}</a>
-				{#if mine}<a class="button" href="/write">{t.common.writeAThought}</a>{/if}
+				<a href={library.href(slug)}>{t.collection.todays}</a>
+				{#if mine}<a class="button" href="/write?c={slug}">{t.common.writeAThought}</a>{/if}
 			</p>
 		</header>
 
