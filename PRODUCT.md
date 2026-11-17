@@ -10,7 +10,7 @@ An installable, offline-first PWA. Mobile web (phone held in one hand) is a firs
 
 ## Users
 
-Primarily the maker: Qoddy is a personal tool first. Other readers are welcome (the site has been public at https://qoddy.mswsi.net since 2026-11-16) but they do not drive decisions. Readers speak English or Russian. The job is a small daily ritual: open the app, read one thought, maybe unfold its notes, keep it, or write a thought of one's own.
+Primarily the maker: Qoddy is a personal tool first. Other readers are welcome (the site has been public since 2026-11-16) but they do not drive decisions. Readers speak English or Russian. The job is a small daily ritual: open the app, read one thought, maybe unfold its notes, keep it, or write a thought of one's own.
 
 ## Product Purpose
 

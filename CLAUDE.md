@@ -20,7 +20,7 @@ See README.md for what the app does. This file covers conventions that are easy 
 
 ## Live users: do not break them
 
-Qoddy has real users since 2026-11-16 (https://qoddy.mswsi.net). Every change must keep working with what is already out there:
+Qoddy has real users since 2026-11-16. Every change must keep working with what is already out there:
 
 - **Devices hold data we cannot see.** IndexedDB records, `meta.state` and stored keys written by any earlier version must still load. Read old shapes; never assume a field exists (`saved.x ?? default`).
 - **Old clients meet the new server.** A tab or installed app can run cached code for a while. `/api/sync` and `/api/auth` changes must be additive: new request fields optional, new response fields ignorable, nothing renamed or removed.

@@ -27,3 +27,6 @@ vite.config.ts.timestamp-*
 *.db-shm
 *.db-wal
 /.playwright-mcp
+
+# Local notes: where Qoddy is deployed, never committed
+CLAUDE.local.md

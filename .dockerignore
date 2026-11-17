@@ -12,3 +12,4 @@ node_modules
 fixtures
 Dockerfile
 .dockerignore
+CLAUDE.local.md
